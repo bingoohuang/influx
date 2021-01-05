@@ -1,0 +1,47 @@
+package influx
+
+import (
+	"time"
+)
+
+func ExampleClient_WritePoint() {
+	c, _ := NewClient("http://localhost:8086", "", "", "ns")
+
+	type EnvSample struct {
+		Time        time.Time `influx:"time"`
+		Location    string    `influx:"location,tag"`
+		Temperature float64   `influx:"temperature"`
+		Humidity    float64   `influx:"humidity"`
+		ID          string    `influx:"-"`
+	}
+
+	s := EnvSample{
+		Time:        time.Now(),
+		Location:    "Rm 243",
+		Temperature: 70.0,
+		Humidity:    60.0,
+		ID:          "12432as32",
+	}
+
+	_ = c.UseDB("myDb").UseMeasurement("test").WritePoint(s)
+}
+
+func ExampleClient_Query() {
+	c, _ := NewClient("http://localhost:8086", "", "", "ns")
+
+	type EnvSample struct {
+		Time        time.Time `influx:"time"`
+		Location    string    `influx:"location,tag"`
+		Temperature float64   `influx:"temperature"`
+		Humidity    float64   `influx:"humidity"`
+		ID          string    `influx:"-"`
+	}
+
+	var samplesRead []EnvSample
+
+	q := `SELECT * FROM test ORDER BY time DESC LIMIT 10`
+
+	_ = c.UseDB("myDb").DecodeQuery(q, &samplesRead)
+
+	// samplesRead is now populated with data from InfluxDb
+}
