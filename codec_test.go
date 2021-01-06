@@ -12,7 +12,7 @@ import (
 )
 
 func TestEncodeDataNotStruct(t *testing.T) {
-	_, _, _, _, err := encode([]int{1, 2, 3}, nil)
+	_, err := encode([]int{1, 2, 3}, nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -24,13 +24,13 @@ func TestEncodeSetsMesurment(t *testing.T) {
 	}
 
 	d := &MyType{"test-data"}
-	_, _, _, measurement, err := encode(d, nil)
+	p, err := encode(d, nil)
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
 
-	if measurement != "MyType" {
-		t.Errorf("%v != %v", measurement, "MyType")
+	if p.Measurement != "MyType" {
+		t.Errorf("%v != %v", p.Measurement, "MyType")
 	}
 }
 
@@ -43,9 +43,9 @@ func TestEncodeUsesTimeField(t *testing.T) {
 	td, _ := time.Parse(time.RFC822, "27 Oct 78 15:04 PST")
 
 	d := &MyType{td, "test-data"}
-	tv, _, _, _, err := encode(d, &usingValue{"my_time_field", false})
+	p, err := encode(d, &usingValue{"my_time_field", false})
 
-	if tv != td {
+	if p.Time != td {
 		t.Error("Did not properly use the time field specified")
 	}
 
@@ -97,28 +97,28 @@ func TestEncode(t *testing.T) {
 		"StructFieldName":  d.StructFieldName,
 	}
 
-	tm, tags, fields, measurement, err := encode(d, nil)
+	p, err := encode(d, nil)
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
 
-	if measurement != d.InfluxMeasurement {
-		t.Errorf("%v != %v", measurement, d.InfluxMeasurement)
+	if p.Measurement != d.InfluxMeasurement {
+		t.Errorf("%v != %v", p.Measurement, d.InfluxMeasurement)
 	}
 
-	if _, ok := fields["InfluxMeasurement"]; ok {
+	if _, ok := p.Fields["InfluxMeasurement"]; ok {
 		t.Errorf("Found InfluxMeasurement in the fields!")
 	}
 
-	if !tm.Equal(timeExp) {
+	if !p.Time.Equal(timeExp) {
 		t.Error("Time does not match")
 	}
 
-	if !reflect.DeepEqual(tags, tagsExp) {
+	if !reflect.DeepEqual(p.Tags, tagsExp) {
 		t.Error("tags not encoded correctly")
 	}
 
-	if !reflect.DeepEqual(fields, fieldsExp) {
+	if !reflect.DeepEqual(p.Fields, fieldsExp) {
 		t.Error("fields not encoded correctly")
 	}
 }

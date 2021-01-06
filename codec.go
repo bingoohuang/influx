@@ -20,17 +20,10 @@ var (
 // InfluxMeasurement is the const field name to tag the measurement name of the struct.
 const InfluxMeasurement = "InfluxMeasurement"
 
-func encode(d interface{}, timeField *usingValue) (
-	t time.Time,
-	tags map[string]string,
-	fields map[string]interface{},
-	measurement string,
-	err error,
-) {
-	tags = make(map[string]string)
-	fields = make(map[string]interface{})
+func encode(d interface{}, timeField *usingValue) (point Point, err error) {
+	point.Tags = make(map[string]string)
+	point.Fields = make(map[string]interface{})
 	dValue := reflect.ValueOf(d)
-
 	if dValue.Kind() == reflect.Ptr {
 		dValue = reflect.Indirect(dValue)
 	}
@@ -40,7 +33,7 @@ func encode(d interface{}, timeField *usingValue) (
 		return
 	}
 
-	if timeField == nil {
+	if timeField == nil || timeField.IsEmpty() {
 		timeField = &usingValue{"time", false}
 	}
 
@@ -48,7 +41,7 @@ func encode(d interface{}, timeField *usingValue) (
 		f := dValue.Field(i)
 		structFieldName := dValue.Type().Field(i).Name
 		if structFieldName == InfluxMeasurement {
-			measurement = f.String()
+			point.Measurement = f.String()
 			continue
 		}
 
@@ -66,21 +59,21 @@ func encode(d interface{}, timeField *usingValue) (
 				return
 			}
 
-			t = v
+			point.Time = v
 			continue
 		}
 
 		if fieldData.isTag {
-			tags[fieldName] = fmt.Sprintf("%v", f)
+			point.Tags[fieldName] = fmt.Sprintf("%v", f)
 		}
 
 		if fieldData.isField {
-			fields[fieldName] = f.Interface()
+			point.Fields[fieldName] = f.Interface()
 		}
 	}
 
-	if measurement == "" {
-		measurement = dValue.Type().Name()
+	if point.Measurement == "" {
+		point.Measurement = dValue.Type().Name()
 	}
 
 	return
@@ -110,6 +103,10 @@ func decode(influxResult []influxModels.Row, result interface{}) error {
 		}
 	}
 
+	if len(influxData) == 0 {
+		return nil
+	}
+
 	metadata := &mapstructure.Metadata{}
 	config := &mapstructure.DecoderConfig{
 		Metadata:         metadata,
@@ -117,7 +114,7 @@ func decode(influxResult []influxModels.Row, result interface{}) error {
 		TagName:          "influx",
 		WeaklyTypedInput: false,
 		ZeroFields:       false,
-		DecodeHook: func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+		DecodeHook: func(f, t reflect.Type, data interface{}) (interface{}, error) {
 			if t == timeType && f == stringType {
 				return time.Parse(time.RFC3339, data.(string))
 			}

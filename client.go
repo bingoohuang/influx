@@ -18,14 +18,29 @@ func CleanQuery(query string) string {
 	return reRemoveExtraSpace.ReplaceAllString(ret, " ")
 }
 
+// Client is the client for influx encoding/decoding.
 type Client struct {
 	influxClient.Client
-	url       string
 	precision string
 
-	db          *usingValue
-	measurement *usingValue
-	timeField   *usingValue
+	db          usingValue
+	measurement usingValue
+	timeField   usingValue
+}
+
+// Point is a point for influx measurement.
+type Point struct {
+	Measurement string
+	Time        time.Time
+	Tags        map[string]string
+	Fields      map[string]interface{}
+}
+
+// Retain tries to retain the temp data.
+func (c *Client) Retain() {
+	c.db.Retain()
+	c.measurement.Retain()
+	c.timeField.Retain()
 }
 
 type usingValue struct {
@@ -33,6 +48,17 @@ type usingValue struct {
 	retain bool
 }
 
+// Retain ...
+func (u *usingValue) Retain() {
+	if !u.retain {
+		u.value = ""
+	}
+}
+
+// IsEmpty tests if the value is empty.
+func (u *usingValue) IsEmpty() bool {
+	return u.value == ""
+}
 
 // NewClient returns a new influx *Client given a url, user,
 // password, and precision strings.
@@ -47,37 +73,35 @@ func NewClient(url, user, passwd, precision string) (*Client, error) {
 		Username: user,
 		Password: passwd,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		url:       url,
 		precision: precision,
 		Client:    client,
 	}, nil
 }
 
-// UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields
+// UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields.
 func (c *Client) UseDB(db string) *Client {
-	c.db = &usingValue{value: db, retain: true}
+	c.db = usingValue{value: db, retain: true}
 	return c
 }
 
-// UseMeasurement sets the DB to use for Query, WritePoint, and WritePointTagsFields
+// UseMeasurement sets the DB to use for Query, WritePoint, and WritePointTagsFields.
 func (c *Client) UseMeasurement(measurement string) *Client {
-	c.measurement = &usingValue{value: measurement, retain: true}
+	c.measurement = usingValue{value: measurement, retain: true}
 	return c
 }
 
-// UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields
+// UseTimeField sets the DB to use for Query, WritePoint, and WritePointTagsFields.
 func (c *Client) UseTimeField(fieldName string) *Client {
-	c.timeField = &usingValue{value: fieldName, retain: true}
+	c.timeField = usingValue{value: fieldName, retain: true}
 	return c
 }
 
-// Query executes an InfluxDb query, and unpacks the result into the
+// DecodeQuery executes an InfluxDb query, and unpacks the result into the
 // result data structure.
 //
 // result must be an array of structs that contains the fields returned
@@ -88,26 +112,21 @@ func (c *Client) UseTimeField(fieldName string) *Client {
 // and InfluxDb field/tag names typically start with a lower case letter.
 // The struct field tag can be set to '-' which indicates this field
 // should be ignored.
-func (c *Client) DecodeQuery(q string, result interface{}) (err error) {
-	if c.db == nil {
+func (c *Client) DecodeQuery(q string, result interface{}) error {
+	if c.db.IsEmpty() {
 		return fmt.Errorf("no db set for query")
 	}
 
-	query := influxClient.Query{
+	response, err := c.Query(influxClient.Query{
 		Command:   q,
 		Database:  c.db.value,
 		Chunked:   false,
 		ChunkSize: 100,
-	}
+	})
+	c.Retain()
 
-	var response *influxClient.Response
-	response, err = c.Query(query)
 	if err != nil {
 		return err
-	}
-
-	if !c.db.retain {
-		c.db = nil
 	}
 
 	if response.Error() != nil {
@@ -115,13 +134,11 @@ func (c *Client) DecodeQuery(q string, result interface{}) (err error) {
 	}
 
 	results := response.Results
-	if len(results) < 1 || len(results[0].Series) < 1 {
-		return
+	if len(results) == 0 {
+		return nil
 	}
 
-	err = decode(results[0].Series, result)
-
-	return
+	return decode(results[0].Series, result)
 }
 
 // WritePoint is used to write arbitrary data into InfluxDb.
@@ -132,31 +149,22 @@ func (c *Client) DecodeQuery(q string, result interface{}) (err error) {
 // the struct field should be ignored. A struct field of Time is required and
 // is used for the time of the sample.
 func (c *Client) WritePoint(data interface{}) error {
-	if c.db == nil {
+	if c.db.IsEmpty() {
 		return fmt.Errorf("no db set for query")
 	}
 
-	t, tags, fields, measurement, err := encode(data, c.timeField)
-
-	if c.measurement == nil {
-		c.measurement = &usingValue{value: measurement, retain: false}
-	}
-
+	point, err := encode(data, &c.timeField)
 	if err != nil {
 		return err
 	}
 
-	return c.WritePointTagsFields(tags, fields, t)
+	return c.WritePointRaw(point)
 }
 
-// WritePointTagsFields is used to write a point specifying tags and fields.
-func (c *Client) WritePointTagsFields(tags map[string]string, fields map[string]interface{}, t time.Time) (err error) {
-	if c.db == nil {
+// WritePointRaw is used to write a point specifying tags and fields.
+func (c *Client) WritePointRaw(point Point) (err error) {
+	if c.db.IsEmpty() {
 		return fmt.Errorf("no db set for query")
-	}
-
-	if c.measurement == nil {
-		return fmt.Errorf("no measurement set for query")
 	}
 
 	bp, err := influxClient.NewBatchPoints(influxClient.BatchPointsConfig{
@@ -167,16 +175,8 @@ func (c *Client) WritePointTagsFields(tags map[string]string, fields map[string]
 		return err
 	}
 
-	pt, err := influxClient.NewPoint(c.measurement.value, tags, fields, t)
-	if !c.db.retain {
-		c.db = nil
-	}
-	if !c.measurement.retain {
-		c.measurement = nil
-	}
-	if c.timeField != nil && !c.timeField.retain {
-		c.timeField = nil
-	}
+	pt, err := influxClient.NewPoint(point.Measurement, point.Tags, point.Fields, point.Time)
+	c.Retain()
 
 	if err != nil {
 		return err
