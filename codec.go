@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	influxModels "github.com/influxdata/influxdb1-client/models"
+	"github.com/influxdata/influxdb1-client/models"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -99,7 +99,7 @@ func (p *Point) processField(fieldData influxField, timeField *usingValue, f ref
 //        }]
 //    }]
 //}
-func decode(influxResult []influxModels.Row, result interface{}) error {
+func decode(influxResult []models.Row, result interface{}) error {
 	influxData := make([]map[string]interface{}, 0)
 
 	for _, series := range influxResult {

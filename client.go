@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	influxClient "github.com/influxdata/influxdb1-client/v2"
+	client "github.com/influxdata/influxdb1-client/v2"
 )
 
 var reRemoveExtraSpace = regexp.MustCompile(`\s\s+`)
@@ -20,7 +20,7 @@ func CleanQuery(query string) string {
 
 // Client is the client for influx encoding/decoding.
 type Client struct {
-	influxClient.Client
+	client.Client
 	precision string
 
 	db          usingValue
@@ -68,7 +68,7 @@ func (u *usingValue) IsEmpty() bool {
 // precision can be ‘h’, ‘m’, ‘s’, ‘ms’, ‘u’, or ‘ns’ and is
 // used during write operations.
 func NewClient(url, user, passwd, precision string) (*Client, error) {
-	client, err := influxClient.NewHTTPClient(influxClient.HTTPConfig{
+	client, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:     url,
 		Username: user,
 		Password: passwd,
@@ -119,7 +119,7 @@ func (c *Client) DecodeQuery(q string, result interface{}) error {
 
 	// sample results check website
 	// https://docs.influxdata.com/influxdb/v1.7/guides/querying_data/
-	response, err := c.Query(influxClient.Query{
+	response, err := c.Query(client.Query{
 		Command:   q,
 		Database:  c.db.value,
 		Chunked:   false,
@@ -169,7 +169,7 @@ func (c *Client) WritePointRaw(p Point) (err error) {
 		return fmt.Errorf("no db set for query")
 	}
 
-	bp, err := influxClient.NewBatchPoints(influxClient.BatchPointsConfig{
+	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  c.db.value,
 		Precision: c.precision,
 	})
@@ -177,7 +177,7 @@ func (c *Client) WritePointRaw(p Point) (err error) {
 		return err
 	}
 
-	pt, err := influxClient.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
+	pt, err := client.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
 	c.Retain()
 
 	if err != nil {

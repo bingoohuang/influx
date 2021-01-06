@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	influxModels "github.com/influxdata/influxdb1-client/models"
+	"github.com/influxdata/influxdb1-client/models"
 )
 
 func TestEncodeDataNotStruct(t *testing.T) {
@@ -64,8 +64,8 @@ func TestEncode(t *testing.T) {
 		FloatValue        float64   `influx:"floatValue"`
 		BoolValue         bool      `influx:"boolValue"`
 		StringValue       string    `influx:"stringValue"`
-		StructFieldName   string    `influx:""`
-		IgnoredValue      string    `influx:"-"`
+		StructFieldName   string
+		IgnoredValue      string `influx:"-"`
 	}
 
 	d := MyType{
@@ -124,7 +124,7 @@ func TestEncode(t *testing.T) {
 }
 
 func TestDecode(t *testing.T) {
-	data := influxModels.Row{
+	data := models.Row{
 		Name: "bla",
 		Columns: []string{
 			"intValue",
@@ -171,7 +171,7 @@ func TestDecode(t *testing.T) {
 
 	var decoded []DecodeType
 
-	err := decode([]influxModels.Row{data}, &decoded)
+	err := decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
@@ -182,7 +182,7 @@ func TestDecode(t *testing.T) {
 }
 
 func TestDecodeMissingColumn(t *testing.T) {
-	data := influxModels.Row{
+	data := models.Row{
 		Name: "bla",
 		Columns: []string{
 			"val1",
@@ -199,7 +199,7 @@ func TestDecodeMissingColumn(t *testing.T) {
 	expected := []DecodeType{{1, 0}}
 	data.Values = append(data.Values, []interface{}{1})
 	var decoded []DecodeType
-	err := decode([]influxModels.Row{data}, &decoded)
+	err := decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("UnExpected error decoding: ", data, &decoded)
 	}
@@ -210,7 +210,7 @@ func TestDecodeMissingColumn(t *testing.T) {
 }
 
 func TestDecodeWrongType(t *testing.T) {
-	data := influxModels.Row{
+	data := models.Row{
 		Name: "bla",
 		Columns: []string{
 			"val1",
@@ -228,7 +228,7 @@ func TestDecodeWrongType(t *testing.T) {
 	expected := []DecodeType{{1, 2.0}}
 	data.Values = append(data.Values, []interface{}{1.0, 2})
 	var decoded []DecodeType
-	err := decode([]influxModels.Row{data}, &decoded)
+	err := decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Unexpected error decoding: ", err, data, decoded)
 	}
@@ -239,7 +239,7 @@ func TestDecodeWrongType(t *testing.T) {
 }
 
 func TestDecodeTime(t *testing.T) {
-	data := influxModels.Row{
+	data := models.Row{
 		Name: "bla",
 		Columns: []string{
 			"time",
@@ -263,7 +263,7 @@ func TestDecodeTime(t *testing.T) {
 	expected := []DecodeType{{ti, 2.0}}
 	data.Values = append(data.Values, []interface{}{timeS, 2.0})
 	var decoded []DecodeType
-	err = decode([]influxModels.Row{data}, &decoded)
+	err = decode([]models.Row{data}, &decoded)
 
 	if err != nil {
 		t.Error("Error decoding: ", err)
@@ -275,7 +275,7 @@ func TestDecodeTime(t *testing.T) {
 }
 
 func TestDecodeJsonNumber(t *testing.T) {
-	data := influxModels.Row{
+	data := models.Row{
 		Name: "bla",
 		Columns: []string{
 			"val1",
@@ -293,7 +293,7 @@ func TestDecodeJsonNumber(t *testing.T) {
 	expected := []DecodeType{{1, 2.0}}
 	data.Values = append(data.Values, []interface{}{json.Number("1"), json.Number("2.0")})
 	decoded := []DecodeType{}
-	err := decode([]influxModels.Row{data}, &decoded)
+	err := decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
@@ -304,7 +304,7 @@ func TestDecodeJsonNumber(t *testing.T) {
 }
 
 func TestDecodeUnsedStructValue(t *testing.T) {
-	data := influxModels.Row{
+	data := models.Row{
 		Name: "bla",
 		Columns: []string{
 			"val1",
@@ -322,7 +322,7 @@ func TestDecodeUnsedStructValue(t *testing.T) {
 	expected := []DecodeType{{1, 0}}
 	data.Values = append(data.Values, []interface{}{1, 1.1})
 	var decoded []DecodeType
-	err := decode([]influxModels.Row{data}, &decoded)
+	err := decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
@@ -333,7 +333,7 @@ func TestDecodeUnsedStructValue(t *testing.T) {
 }
 
 func TestDecodeMeasure(t *testing.T) {
-	data := influxModels.Row{
+	data := models.Row{
 		Name: "bla",
 		Columns: []string{
 			"val1",
@@ -352,7 +352,7 @@ func TestDecodeMeasure(t *testing.T) {
 	expected := []DecodeType{{"bla", 1, 0}}
 	data.Values = append(data.Values, []interface{}{1, 1.1})
 	var decoded []DecodeType
-	err := decode([]influxModels.Row{data}, &decoded)
+	err := decode([]models.Row{data}, &decoded)
 
 	if decoded[0].InfluxMeasurement != expected[0].InfluxMeasurement {
 		t.Error("Decoded Wrong measure")
