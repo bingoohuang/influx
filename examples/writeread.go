@@ -100,4 +100,51 @@ func main() {
 	}
 
 	log.Printf("Samples read: %+v", samplesRead)
+
+	ShowMeasure()
+}
+
+func ShowMeasure() {
+	type Measurement struct {
+		Name string `influx:"name"`
+	}
+
+	var measurements []Measurement
+
+	err := c.UseDB("mydb").DecodeQuery(`show MEASUREMENTS WITH MEASUREMENT =~ /cpu_/`, &measurements)
+	if err != nil {
+		log.Printf("error: %v", err)
+	}
+
+	// measurements read: [{Name:cpu_load_short}]
+	log.Printf("measurements read: %+v", measurements)
+
+	type Sum struct {
+		Sum float64 `influx:"sum"`
+	}
+
+	var sum []Sum
+
+	err = c.UseDB("mydb").DecodeQuery(`select sum(value) from cpu_load_short`, &sum)
+	if err != nil {
+		log.Printf("error: %v", err)
+	}
+	// sum read: [{Sum:0.64}]
+	log.Printf("sum read: %+v", sum)
+
+	type Cpu struct {
+		Time   time.Time `influx:"time"`
+		Host   string    `influx:"host"`
+		Region string    `influx:"region"`
+		Value  float64   `influx:"value"`
+	}
+
+	var cpus []Cpu
+
+	err = c.UseDB("mydb").DecodeQuery(`select * from cpu_load_short`, &cpus)
+	if err != nil {
+		log.Printf("error: %v", err)
+	}
+	//  cpus read: [{Time:2015-06-11 20:46:02 +0000 UTC Host:server01 Region:us-west Value:0.64}]
+	log.Printf("cpus read: %+v", cpus)
 }
