@@ -37,45 +37,47 @@ func encode(d interface{}, timeField *usingValue) (point Point, err error) {
 		timeField = &usingValue{"time", false}
 	}
 
+	dType := dValue.Type()
 	for i := 0; i < dValue.NumField(); i++ {
-		f := dValue.Field(i)
-		structFieldName := dValue.Type().Field(i).Name
-		if structFieldName == InfluxMeasurement {
-			point.Measurement = f.String()
+		fTyp, fVal := dType.Field(i), dValue.Field(i)
+		if fTyp.Name == InfluxMeasurement {
+			point.Measurement = fVal.String()
 			continue
 		}
 
-		fieldTag := dValue.Type().Field(i).Tag.Get("influx")
-		fieldData := getInfluxFieldTagData(structFieldName, fieldTag)
-		fieldName := fieldData.fieldName
-		if fieldName == "-" {
-			continue
-		}
-
-		if fieldName == timeField.value {
-			v, ok := f.Interface().(time.Time)
-			if !ok {
-				err = fmt.Errorf("time field %s is not time.Time", fieldName)
-				return
-			}
-
-			point.Time = v
-			continue
-		}
-
-		if fieldData.isTag {
-			point.Tags[fieldName] = fmt.Sprintf("%v", f)
-		}
-		if fieldData.isField {
-			point.Fields[fieldName] = f.Interface()
+		fieldData := getInfluxField(fTyp.Name, fTyp.Tag.Get("influx"))
+		if err = point.processField(fieldData, timeField, fVal); err != nil {
+			return
 		}
 	}
 
 	if point.Measurement == "" {
-		point.Measurement = dValue.Type().Name()
+		point.Measurement = dType.Name()
 	}
 
 	return
+}
+
+func (p *Point) processField(fieldData influxField, timeField *usingValue, f reflect.Value) error {
+	fieldName := fieldData.fieldName
+	if fieldName == timeField.value {
+		v, ok := f.Interface().(time.Time)
+		if !ok {
+			return fmt.Errorf("time field %s is not time.Time", fieldName)
+		}
+
+		p.Time = v
+		return nil
+	}
+
+	if fieldData.isTag {
+		p.Tags[fieldName] = fmt.Sprintf("%v", f)
+	}
+	if fieldData.isField {
+		p.Fields[fieldName] = f.Interface()
+	}
+
+	return nil
 }
 
 // Decode is used to process data returned by an InfluxDb query and uses reflection
@@ -150,17 +152,21 @@ func decode(influxResult []influxModels.Row, result interface{}) error {
 // Measurement is a type that defines the influx db measurement.
 type Measurement = string
 
-type influxFieldTagData struct {
+type influxField struct {
 	fieldName string
 	isTag     bool
 	isField   bool
 }
 
-func getInfluxFieldTagData(fieldName, structTag string) influxFieldTagData {
-	fieldData := influxFieldTagData{fieldName: fieldName}
+func getInfluxField(fieldName, structTag string) influxField {
+	fieldData := influxField{fieldName: fieldName}
 	parts := strings.Split(structTag, ",")
 	if fieldName, parts = parts[0], parts[1:]; fieldName != "" {
 		fieldData.fieldName = fieldName
+	}
+
+	if fieldName == "-" {
+		return fieldData
 	}
 
 	for _, part := range parts {

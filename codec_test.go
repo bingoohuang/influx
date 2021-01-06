@@ -376,7 +376,6 @@ func TestTag(t *testing.T) {
 		isField         bool
 	}{
 		{"", "Test", "Test", false, true},
-		{"", "Test", "Test", false, true},
 		{",tag", "Test", "Test", true, false},
 		{",field,tag", "Test", "Test", true, true},
 		{",tag,field", "Test", "Test", true, true},
@@ -385,11 +384,13 @@ func TestTag(t *testing.T) {
 		{"test,tag", "Test", "test", true, false},
 		{"test,field,tag", "Test", "test", true, true},
 		{"test,tag,field", "Test", "test", true, true},
+		{"-,tag,field", "Test", "-", false, false},
 		{"test,field", "Test", "test", false, true},
+		{"-", "Test", "-", false, false},
 	}
 
 	for _, testData := range data {
-		fieldData := getInfluxFieldTagData(testData.structFieldName, testData.fieldTag)
+		fieldData := getInfluxField(testData.structFieldName, testData.fieldTag)
 		if fieldData.fieldName != testData.fieldName {
 			t.Errorf("%v != %v", fieldData.fieldName, testData.fieldName)
 		}
