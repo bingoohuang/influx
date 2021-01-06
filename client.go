@@ -117,6 +117,8 @@ func (c *Client) DecodeQuery(q string, result interface{}) error {
 		return fmt.Errorf("no db set for query")
 	}
 
+	// sample results check website
+	// https://docs.influxdata.com/influxdb/v1.7/guides/querying_data/
 	response, err := c.Query(influxClient.Query{
 		Command:   q,
 		Database:  c.db.value,
