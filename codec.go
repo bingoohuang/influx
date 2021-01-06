@@ -21,8 +21,6 @@ var (
 const InfluxMeasurement = "InfluxMeasurement"
 
 func encode(d interface{}, timeField *usingValue) (point Point, err error) {
-	point.Tags = make(map[string]string)
-	point.Fields = make(map[string]interface{})
 	dValue := reflect.ValueOf(d)
 	if dValue.Kind() == reflect.Ptr {
 		dValue = reflect.Indirect(dValue)
@@ -33,6 +31,8 @@ func encode(d interface{}, timeField *usingValue) (point Point, err error) {
 		return
 	}
 
+	point.Tags = make(map[string]string)
+	point.Fields = make(map[string]interface{})
 	if timeField == nil || timeField.IsEmpty() {
 		timeField = &usingValue{"time", false}
 	}
@@ -66,7 +66,6 @@ func encode(d interface{}, timeField *usingValue) (point Point, err error) {
 		if fieldData.isTag {
 			point.Tags[fieldName] = fmt.Sprintf("%v", f)
 		}
-
 		if fieldData.isField {
 			point.Fields[fieldName] = f.Interface()
 		}
@@ -83,6 +82,21 @@ func encode(d interface{}, timeField *usingValue) (point Point, err error) {
 // to transform it into an array of structs of type result.
 //
 // This function is used internally by the Query function.
+// example result layout:
+// {
+//    "results": [{
+//        "statement_id": 0,
+//        "series": [{
+//            "name": "cpu_load_short",
+//            "columns": ["time", "value"],
+//            "values": [
+//                ["2015-01-29T21:55:43.702900257Z", 2],
+//                ["2015-01-29T21:55:43.702900257Z", 0.55],
+//                ["2015-06-11T20:46:02Z", 0.64]
+//            ]
+//        }]
+//    }]
+//}
 func decode(influxResult []influxModels.Row, result interface{}) error {
 	influxData := make([]map[string]interface{}, 0)
 
@@ -90,9 +104,7 @@ func decode(influxResult []influxModels.Row, result interface{}) error {
 		for _, v := range series.Values {
 			r := make(map[string]interface{})
 			for i, c := range series.Columns {
-				if len(v) >= i+1 {
-					r[c] = v[i]
-				}
+				r[c] = v[i]
 			}
 			for tag, val := range series.Tags {
 				r[tag] = val
@@ -147,8 +159,7 @@ type influxFieldTagData struct {
 func getInfluxFieldTagData(fieldName, structTag string) influxFieldTagData {
 	fieldData := influxFieldTagData{fieldName: fieldName}
 	parts := strings.Split(structTag, ",")
-	fieldName, parts = parts[0], parts[1:]
-	if fieldName != "" {
+	if fieldName, parts = parts[0], parts[1:]; fieldName != "" {
 		fieldData.fieldName = fieldName
 	}
 
@@ -161,7 +172,7 @@ func getInfluxFieldTagData(fieldName, structTag string) influxFieldTagData {
 		}
 	}
 
-	if !fieldData.isField && !fieldData.isTag {
+	if !fieldData.isTag {
 		fieldData.isField = true
 	}
 

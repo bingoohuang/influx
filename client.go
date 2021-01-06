@@ -164,7 +164,7 @@ func (c *Client) WritePoint(data interface{}) error {
 }
 
 // WritePointRaw is used to write a point specifying tags and fields.
-func (c *Client) WritePointRaw(point Point) (err error) {
+func (c *Client) WritePointRaw(p Point) (err error) {
 	if c.db.IsEmpty() {
 		return fmt.Errorf("no db set for query")
 	}
@@ -177,7 +177,7 @@ func (c *Client) WritePointRaw(point Point) (err error) {
 		return err
 	}
 
-	pt, err := influxClient.NewPoint(point.Measurement, point.Tags, point.Fields, point.Time)
+	pt, err := influxClient.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
 	c.Retain()
 
 	if err != nil {
