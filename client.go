@@ -15,11 +15,12 @@ var reRemoveExtraSpace = regexp.MustCompile(`\s\s+`)
 // newline characters. Typically only used for debugging.
 func CleanQuery(query string) string {
 	ret := strings.Replace(query, "\n", "", -1)
+	ret = strings.Replace(ret, "\r", "", -1)
 	return reRemoveExtraSpace.ReplaceAllString(ret, " ")
 }
 
-// Client is the client for influx encoding/decoding.
-type Client struct {
+// Cli is the client for influx encoding/decoding.
+type Cli struct {
 	client.Client
 	precision string
 
@@ -37,7 +38,7 @@ type Point struct {
 }
 
 // Retain tries to retain the temp data.
-func (c *Client) Retain() {
+func (c *Cli) Retain() {
 	c.db.Retain()
 	c.measurement.Retain()
 	c.timeField.Retain()
@@ -60,15 +61,15 @@ func (u *usingValue) IsEmpty() bool {
 	return u.value == ""
 }
 
-// NewClient returns a new influx *Client given a url, user,
+// NewClient returns a new influx *Cli given a url, user,
 // password, and precision strings.
 //
 // url is typically something like: http://localhost:8086
 //
 // precision can be ‘h’, ‘m’, ‘s’, ‘ms’, ‘u’, or ‘ns’ and is
 // used during write operations.
-func NewClient(url, user, passwd, precision string) (*Client, error) {
-	client, err := client.NewHTTPClient(client.HTTPConfig{
+func NewClient(url, user, passwd, precision string) (*Cli, error) {
+	c, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:     url,
 		Username: user,
 		Password: passwd,
@@ -77,26 +78,26 @@ func NewClient(url, user, passwd, precision string) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{
+	return &Cli{
 		precision: precision,
-		Client:    client,
+		Client:    c,
 	}, nil
 }
 
 // UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields.
-func (c *Client) UseDB(db string) *Client {
+func (c *Cli) UseDB(db string) *Cli {
 	c.db = usingValue{value: db, retain: true}
 	return c
 }
 
 // UseMeasurement sets the DB to use for Query, WritePoint, and WritePointTagsFields.
-func (c *Client) UseMeasurement(measurement string) *Client {
+func (c *Cli) UseMeasurement(measurement string) *Cli {
 	c.measurement = usingValue{value: measurement, retain: true}
 	return c
 }
 
 // UseTimeField sets the DB to use for Query, WritePoint, and WritePointTagsFields.
-func (c *Client) UseTimeField(fieldName string) *Client {
+func (c *Cli) UseTimeField(fieldName string) *Cli {
 	c.timeField = usingValue{value: fieldName, retain: true}
 	return c
 }
@@ -112,7 +113,7 @@ func (c *Client) UseTimeField(fieldName string) *Client {
 // and InfluxDb field/tag names typically start with a lower case letter.
 // The struct field tag can be set to '-' which indicates this field
 // should be ignored.
-func (c *Client) DecodeQuery(q string, result interface{}) error {
+func (c *Cli) DecodeQuery(q string, result interface{}) error {
 	if c.db.IsEmpty() {
 		return fmt.Errorf("no db set for query")
 	}
@@ -140,7 +141,7 @@ func (c *Client) DecodeQuery(q string, result interface{}) error {
 		return nil
 	}
 
-	return decode(results[0].Series, result)
+	return Decode(results[0].Series, result)
 }
 
 // WritePoint is used to write arbitrary data into InfluxDb.
@@ -150,12 +151,12 @@ func (c *Client) DecodeQuery(q string, result interface{}) error {
 // struct field should be an InfluxDb tag (vs field). A tag of '-' indicates
 // the struct field should be ignored. A struct field of Time is required and
 // is used for the time of the sample.
-func (c *Client) WritePoint(data interface{}) error {
+func (c *Cli) WritePoint(data interface{}) error {
 	if c.db.IsEmpty() {
 		return fmt.Errorf("no db set for query")
 	}
 
-	point, err := encode(data, &c.timeField)
+	point, err := Encode(data, &c.timeField)
 	if err != nil {
 		return err
 	}
@@ -164,7 +165,7 @@ func (c *Client) WritePoint(data interface{}) error {
 }
 
 // WritePointRaw is used to write a point specifying tags and fields.
-func (c *Client) WritePointRaw(p Point) (err error) {
+func (c *Cli) WritePointRaw(p Point) (err error) {
 	if c.db.IsEmpty() {
 		return fmt.Errorf("no db set for query")
 	}

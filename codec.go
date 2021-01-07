@@ -3,7 +3,6 @@ package influx
 import (
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 	"time"
@@ -20,61 +19,61 @@ var (
 // InfluxMeasurement is the const field name to tag the measurement name of the struct.
 const InfluxMeasurement = "InfluxMeasurement"
 
-func encode(d interface{}, timeField *usingValue) (point Point, err error) {
-	dValue := reflect.ValueOf(d)
-	if dValue.Kind() == reflect.Ptr {
-		dValue = reflect.Indirect(dValue)
+// Encode encodes a d into influx Point.
+func Encode(d interface{}, timeField *usingValue) (p Point, err error) {
+	dv := reflect.ValueOf(d)
+	if dv.Kind() == reflect.Ptr {
+		dv = reflect.Indirect(dv)
 	}
 
-	if dValue.Kind() != reflect.Struct {
+	if dv.Kind() != reflect.Struct {
 		err = errors.New("data must be a struct")
 		return
 	}
 
-	point.Tags = make(map[string]string)
-	point.Fields = make(map[string]interface{})
+	p.Tags = make(map[string]string)
+	p.Fields = make(map[string]interface{})
 	if timeField == nil || timeField.IsEmpty() {
 		timeField = &usingValue{"time", false}
 	}
 
-	dType := dValue.Type()
-	for i := 0; i < dValue.NumField(); i++ {
-		fTyp, fVal := dType.Field(i), dValue.Field(i)
-		if fTyp.Name == InfluxMeasurement {
-			point.Measurement = fVal.String()
+	dt := dv.Type()
+	for i := 0; i < dv.NumField(); i++ {
+		ft, fv := dt.Field(i), dv.Field(i)
+		if ft.Name == InfluxMeasurement {
+			p.Measurement = fv.String()
 			continue
 		}
 
-		fieldData := getInfluxField(fTyp.Name, fTyp.Tag.Get("influx"))
-		if err = point.processField(fieldData, timeField, fVal); err != nil {
+		fd := parseInfluxTag(ft.Name, ft.Tag.Get("influx"))
+		if err = p.processField(fd, timeField, fv); err != nil {
 			return
 		}
 	}
 
-	if point.Measurement == "" {
-		point.Measurement = dType.Name()
+	if p.Measurement == "" {
+		p.Measurement = dt.Name()
 	}
 
 	return
 }
 
-func (p *Point) processField(fieldData influxField, timeField *usingValue, f reflect.Value) error {
-	fieldName := fieldData.fieldName
-	if fieldName == timeField.value {
+func (p *Point) processField(fd influxField, timeField *usingValue, f reflect.Value) error {
+	if fd.fieldName == timeField.value {
 		v, ok := f.Interface().(time.Time)
 		if !ok {
-			return fmt.Errorf("time field %s is not time.Time", fieldName)
+			return fmt.Errorf("time field %s is not time.Time", fd.fieldName)
 		}
 
 		p.Time = v
 		return nil
 	}
 
-	if fieldData.isTag {
-		p.Tags[fieldName] = fmt.Sprintf("%v", f)
+	if fd.isTag {
+		p.Tags[fd.fieldName] = fmt.Sprintf("%v", f)
 	}
-	if fieldData.isField {
-		p.Fields[fieldName] = f.Interface()
+	if fd.isField {
+		p.Fields[fd.fieldName] = f.Interface()
 	}
 
 	return nil
@@ -99,7 +98,7 @@ func (p *Point) processField(fieldData influxField, timeField *usingValue, f ref
 //        }]
 //    }]
 //}
-func decode(influxResult []models.Row, result interface{}) error {
+func Decode(influxResult []models.Row, result interface{}) error {
 	influxData := make([]map[string]interface{}, 0)
 
 	for _, series := range influxResult {
@@ -121,9 +120,8 @@ func decode(influxResult []models.Row, result interface{}) error {
 		return nil
 	}
 
-	metadata := &mapstructure.Metadata{}
 	config := &mapstructure.DecoderConfig{
-		Metadata:         metadata,
+		Metadata:         &mapstructure.Metadata{},
 		Result:           result,
 		TagName:          "influx",
 		WeaklyTypedInput: false,
@@ -142,15 +140,8 @@ func decode(influxResult []models.Row, result interface{}) error {
 		return err
 	}
 
-	if len(metadata.Unused) > 0 {
-		log.Printf("D! Unused keys: %v", metadata.Unused)
-	}
-
 	return decoder.Decode(influxData)
 }
-
-// Measurement is a type that defines the influx db measurement.
-type Measurement = string
 
 type influxField struct {
 	fieldName string
@@ -158,29 +149,29 @@ type influxField struct {
 	isField   bool
 }
 
-func getInfluxField(fieldName, structTag string) influxField {
-	fieldData := influxField{fieldName: fieldName}
+func parseInfluxTag(fieldName, structTag string) influxField {
+	fd := influxField{fieldName: fieldName}
 	parts := strings.Split(structTag, ",")
 	if fieldName, parts = parts[0], parts[1:]; fieldName != "" {
-		fieldData.fieldName = fieldName
+		fd.fieldName = fieldName
 	}
 
 	if fieldName == "-" {
-		return fieldData
+		return fd
 	}
 
 	for _, part := range parts {
 		switch part {
 		case "tag":
-			fieldData.isTag = true
+			fd.isTag = true
 		case "field":
-			fieldData.isField = true
+			fd.isField = true
 		}
 	}
 
-	if !fieldData.isTag {
-		fieldData.isField = true
+	if !fd.isTag {
+		fd.isField = true
 	}
 
-	return fieldData
+	return fd
 }

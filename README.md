@@ -13,7 +13,7 @@ go get github.com/bingoohuang/influx
 
 ## Example
 
-See a working example [here](examples/writeread.go)
+See a working example [here](cmd/influxdemo/main.go)
 
 ## Details
 

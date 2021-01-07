@@ -12,7 +12,7 @@ import (
 )
 
 func TestEncodeDataNotStruct(t *testing.T) {
-	_, err := encode([]int{1, 2, 3}, nil)
+	_, err := Encode([]int{1, 2, 3}, nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -24,7 +24,7 @@ func TestEncodeSetsMesurment(t *testing.T) {
 	}
 
 	d := &MyType{"test-data"}
-	p, err := encode(d, nil)
+	p, err := Encode(d, nil)
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -43,20 +43,19 @@ func TestEncodeUsesTimeField(t *testing.T) {
 	td, _ := time.Parse(time.RFC822, "27 Oct 78 15:04 PST")
 
 	d := &MyType{td, "test-data"}
-	p, err := encode(d, &usingValue{"my_time_field", false})
+	p, err := Encode(d, &usingValue{"my_time_field", false})
+	if err != nil {
+		t.Error("Error encoding: ", err)
+	}
 
 	if p.Time != td {
 		t.Error("Did not properly use the time field specified")
-	}
-
-	if err != nil {
-		t.Error("Error encoding: ", err)
 	}
 }
 
 func TestEncode(t *testing.T) {
 	type MyType struct {
-		InfluxMeasurement Measurement
+		InfluxMeasurement string
 		Time              time.Time `influx:"time"`
 		TagValue          string    `influx:"tagValue,tag"`
 		TagAndFieldValue  string    `influx:"tagAndFieldValue,tag,field"`
@@ -97,7 +96,7 @@ func TestEncode(t *testing.T) {
 		"StructFieldName":  d.StructFieldName,
 	}
 
-	p, err := encode(d, nil)
+	p, err := Encode(d, nil)
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -106,7 +105,7 @@ func TestEncode(t *testing.T) {
 		t.Errorf("%v != %v", p.Measurement, d.InfluxMeasurement)
 	}
 
-	if _, ok := p.Fields["InfluxMeasurement"]; ok {
+	if _, ok := p.Fields[InfluxMeasurement]; ok {
 		t.Errorf("Found InfluxMeasurement in the fields!")
 	}
 
@@ -171,7 +170,7 @@ func TestDecode(t *testing.T) {
 
 	var decoded []DecodeType
 
-	err := decode([]models.Row{data}, &decoded)
+	err := Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
@@ -199,7 +198,7 @@ func TestDecodeMissingColumn(t *testing.T) {
 	expected := []DecodeType{{1, 0}}
 	data.Values = append(data.Values, []interface{}{1})
 	var decoded []DecodeType
-	err := decode([]models.Row{data}, &decoded)
+	err := Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("UnExpected error decoding: ", data, &decoded)
 	}
@@ -228,7 +227,7 @@ func TestDecodeWrongType(t *testing.T) {
 	expected := []DecodeType{{1, 2.0}}
 	data.Values = append(data.Values, []interface{}{1.0, 2})
 	var decoded []DecodeType
-	err := decode([]models.Row{data}, &decoded)
+	err := Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Unexpected error decoding: ", err, data, decoded)
 	}
@@ -263,7 +262,7 @@ func TestDecodeTime(t *testing.T) {
 	expected := []DecodeType{{ti, 2.0}}
 	data.Values = append(data.Values, []interface{}{timeS, 2.0})
 	var decoded []DecodeType
-	err = decode([]models.Row{data}, &decoded)
+	err = Decode([]models.Row{data}, &decoded)
 
 	if err != nil {
 		t.Error("Error decoding: ", err)
@@ -292,8 +291,8 @@ func TestDecodeJsonNumber(t *testing.T) {
 
 	expected := []DecodeType{{1, 2.0}}
 	data.Values = append(data.Values, []interface{}{json.Number("1"), json.Number("2.0")})
-	decoded := []DecodeType{}
-	err := decode([]models.Row{data}, &decoded)
+	var decoded []DecodeType
+	err := Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
@@ -322,7 +321,7 @@ func TestDecodeUnsedStructValue(t *testing.T) {
 	expected := []DecodeType{{1, 0}}
 	data.Values = append(data.Values, []interface{}{1, 1.1})
 	var decoded []DecodeType
-	err := decode([]models.Row{data}, &decoded)
+	err := Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
@@ -344,7 +343,7 @@ func TestDecodeMeasure(t *testing.T) {
 	}
 
 	type DecodeType struct {
-		InfluxMeasurement Measurement
+		InfluxMeasurement string
 		Val1              int     `influx:"val1"`
 		Val2              float64 `influx:"-"`
 	}
@@ -352,7 +351,7 @@ func TestDecodeMeasure(t *testing.T) {
 	expected := []DecodeType{{"bla", 1, 0}}
 	data.Values = append(data.Values, []interface{}{1, 1.1})
 	var decoded []DecodeType
-	err := decode([]models.Row{data}, &decoded)
+	err := Decode([]models.Row{data}, &decoded)
 
 	if decoded[0].InfluxMeasurement != expected[0].InfluxMeasurement {
 		t.Error("Decoded Wrong measure")
@@ -390,7 +389,7 @@ func TestTag(t *testing.T) {
 	}
 
 	for _, testData := range data {
-		fieldData := getInfluxField(testData.structFieldName, testData.fieldTag)
+		fieldData := parseInfluxTag(testData.structFieldName, testData.fieldTag)
 		if fieldData.fieldName != testData.fieldName {
 			t.Errorf("%v != %v", fieldData.fieldName, testData.fieldName)
 		}

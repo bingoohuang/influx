@@ -11,10 +11,10 @@ import (
 const (
 	// Static connection configuration
 	influxURL = "http://localhost:8086"
-	db        = "dbhelper"
+	db        = "demo"
 )
 
-var c *influx.Client
+var c *influx.Cli
 
 // Init initializes the database connection
 func Init() (err error) {
@@ -36,7 +36,7 @@ func Init() (err error) {
 }
 
 type envSample struct {
-	InfluxMeasurement influx.Measurement
+	InfluxMeasurement string
 	Time              time.Time `influx:"time"`
 	Location          string    `influx:"location,tag"`
 	Temperature       float64   `influx:"temperature"`
@@ -47,7 +47,7 @@ type envSample struct {
 // we populate a few more fields when reading back
 // date to verify unused fields are handled correctly
 type envSampleRead struct {
-	InfluxMeasurement influx.Measurement
+	InfluxMeasurement string
 	Time              time.Time `influx:"time"`
 	Location          string    `influx:"location,tag"`
 	City              string    `influx:"city,tag,field"`
