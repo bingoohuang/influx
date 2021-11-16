@@ -28,11 +28,6 @@ negligible (this is an assumption at this point and has not been proven).
 
 The codec_test.go file contains a number of tests that illustrate the conversion from influx JSON to Go struct values.
 
-## Acknowledgments
-
-The [mapstructure](https://github.com/mitchellh/mapstructure) library provided a very useful reference for learning how
-to use the Go reflect functionality.
-
 ## Status
 
 Todo:
@@ -50,3 +45,5 @@ Review/Pull requests welcome!
 ## Resources
 
 1. [influxdb docker](https://hub.docker.com/_/influxdb) `docker run -p 8086:8086 influxdb:1.8`
+2. [mapstructure](https://github.com/mitchellh/mapstructure) provides a very useful reference for learning how to use
+   the Go reflect functionality.
