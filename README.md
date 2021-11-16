@@ -1,25 +1,18 @@
-# InfluxDb Helper Library
+# InfluxDb Helper
 
 > easily write and query InfluxDb on Go structs
 
 This library allows you to encode/decode InfluxDb data to/from Go structs -- similar to JSON and MongoDb using Go struct
-field tags.  This repo is originally from [cbrake/influxdbhelper](https://github.com/cbrake/influxdbhelper)
+field tags. This repo is originally from [cbrake/influxdbhelper](https://github.com/cbrake/influxdbhelper)
 
-## Install
-
-```
-go get github.com/bingoohuang/influx
-```
-
-## Example
-
-See a working example [here](cmd/influxdemo/main.go)
+- Install : `go get github.com/bingoohuang/influx`
+- Example: [here](client_test.go)
 
 ## Details
 
 There are several advantages decoding and encoding data directly from Go Structs:
 
-1. The database bschema is documented by the Go type definition. This helps ensure data is written consistently to the
+1. The database schema is documented by the Go type definition. This helps ensure data is written consistently to the
    database. When all your data is clearly defined in Go structs, it is much more obvious how to organize it, what goes
    in what measurement, when to create a new measurement, etc. When writing straight tags/values, it is much easier to
    create a disorganized mess.
@@ -30,7 +23,7 @@ There are several advantages decoding and encoding data directly from Go Structs
 1. Reading and Writing data is much simpler and requires way less code.
 
 Using Go reflection to automate data decode may be slightly slower than custom decode logic for every query, but it
-seems the time to decode the data will relatively fast compared to the time to run a InfluxDb query, so may be
+seems the time to decode the data will relatively fast compare to the time to run a InfluxDb query, so may be
 negligible (this is an assumption at this point and has not been proven).
 
 The codec_test.go file contains a number of tests that illustrate the conversion from influx JSON to Go struct values.
@@ -53,3 +46,7 @@ Todo:
 - [ ] optimize query for performance (pre-allocate slices, etc)
 
 Review/Pull requests welcome!
+
+## Resources
+
+1. [influxdb docker](https://hub.docker.com/_/influxdb) `docker run -p 8086:8086 influxdb:1.8`

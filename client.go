@@ -1,7 +1,6 @@
 package influx
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -12,7 +11,7 @@ import (
 var reRemoveExtraSpace = regexp.MustCompile(`\s\s+`)
 
 // CleanQuery can be used to strip a query string of
-// newline characters. Typically only used for debugging.
+// newline characters. Typically, only used for debugging.
 func CleanQuery(query string) string {
 	ret := strings.Replace(query, "\n", "", -1)
 	ret = strings.Replace(ret, "\r", "", -1)
@@ -22,11 +21,10 @@ func CleanQuery(query string) string {
 // Cli is the client for influx encoding/decoding.
 type Cli struct {
 	client.Client
-	precision string
+	Precision string
 
-	db          usingValue
-	measurement usingValue
-	timeField   usingValue
+	db        string
+	timeField string
 }
 
 // Point is a point for influx measurement.
@@ -35,30 +33,6 @@ type Point struct {
 	Time        time.Time
 	Tags        map[string]string
 	Fields      map[string]interface{}
-}
-
-// Retain tries to retain the temp data.
-func (c *Cli) Retain() {
-	c.db.Retain()
-	c.measurement.Retain()
-	c.timeField.Retain()
-}
-
-type usingValue struct {
-	value  string
-	retain bool
-}
-
-// Retain ...
-func (u *usingValue) Retain() {
-	if !u.retain {
-		u.value = ""
-	}
-}
-
-// IsEmpty tests if the value is empty.
-func (u *usingValue) IsEmpty() bool {
-	return u.value == ""
 }
 
 // NewClient returns a new influx *Cli given a url, user,
@@ -78,27 +52,30 @@ func NewClient(url, user, passwd, precision string) (*Cli, error) {
 		return nil, err
 	}
 
+	if precision == "" {
+		precision = "ns"
+	}
+
 	return &Cli{
-		precision: precision,
+		Precision: precision,
 		Client:    c,
 	}, nil
 }
 
-// UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields.
-func (c *Cli) UseDB(db string) *Cli {
-	c.db = usingValue{value: db, retain: true}
-	return c
+// NewCli create a client using a direct client.Client.
+func NewCli(c client.Client) *Cli {
+	return &Cli{Precision: "ns", Client: c}
 }
 
-// UseMeasurement sets the DB to use for Query, WritePoint, and WritePointTagsFields.
-func (c *Cli) UseMeasurement(measurement string) *Cli {
-	c.measurement = usingValue{value: measurement, retain: true}
+// UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields.
+func (c *Cli) UseDB(db string) *Cli {
+	c.db = db
 	return c
 }
 
 // UseTimeField sets the DB to use for Query, WritePoint, and WritePointTagsFields.
 func (c *Cli) UseTimeField(fieldName string) *Cli {
-	c.timeField = usingValue{value: fieldName, retain: true}
+	c.timeField = fieldName
 	return c
 }
 
@@ -114,34 +91,27 @@ func (c *Cli) UseTimeField(fieldName string) *Cli {
 // The struct field tag can be set to '-' which indicates this field
 // should be ignored.
 func (c *Cli) DecodeQuery(q string, result interface{}) error {
-	if c.db.IsEmpty() {
-		return fmt.Errorf("no db set for query")
-	}
-
 	// sample results check website
 	// https://docs.influxdata.com/influxdb/v1.7/guides/querying_data/
 	response, err := c.Query(client.Query{
 		Command:   q,
-		Database:  c.db.value,
+		Database:  c.db,
 		Chunked:   false,
 		ChunkSize: 100,
 	})
-	c.Retain()
 
 	if err != nil {
 		return err
 	}
-
 	if response.Error() != nil {
 		return response.Error()
 	}
 
-	results := response.Results
-	if len(results) == 0 {
+	if len(response.Results) == 0 {
 		return nil
 	}
 
-	return Decode(results[0].Series, result)
+	return Decode(response.Results[0].Series, result)
 }
 
 // WritePoint is used to write arbitrary data into InfluxDb.
@@ -152,11 +122,7 @@ func (c *Cli) DecodeQuery(q string, result interface{}) error {
 // the struct field should be ignored. A struct field of Time is required and
 // is used for the time of the sample.
 func (c *Cli) WritePoint(data interface{}) error {
-	if c.db.IsEmpty() {
-		return fmt.Errorf("no db set for query")
-	}
-
-	point, err := Encode(data, &c.timeField)
+	point, err := Encode(data, c.timeField)
 	if err != nil {
 		return err
 	}
@@ -166,20 +132,15 @@ func (c *Cli) WritePoint(data interface{}) error {
 
 // WritePointRaw is used to write a point specifying tags and fields.
 func (c *Cli) WritePointRaw(p Point) (err error) {
-	if c.db.IsEmpty() {
-		return fmt.Errorf("no db set for query")
-	}
-
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  c.db.value,
-		Precision: c.precision,
+		Database:  c.db,
+		Precision: c.Precision,
 	})
 	if err != nil {
 		return err
 	}
 
 	pt, err := client.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
-	c.Retain()
 
 	if err != nil {
 		return err

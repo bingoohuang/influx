@@ -20,7 +20,7 @@ var (
 const InfluxMeasurement = "InfluxMeasurement"
 
 // Encode encodes a d into influx Point.
-func Encode(d interface{}, timeField *usingValue) (p Point, err error) {
+func Encode(d interface{}, timeField string) (p Point, err error) {
 	dv := reflect.ValueOf(d)
 	if dv.Kind() == reflect.Ptr {
 		dv = reflect.Indirect(dv)
@@ -33,8 +33,8 @@ func Encode(d interface{}, timeField *usingValue) (p Point, err error) {
 
 	p.Tags = make(map[string]string)
 	p.Fields = make(map[string]interface{})
-	if timeField == nil || timeField.IsEmpty() {
-		timeField = &usingValue{"time", false}
+	if timeField == "" {
+		timeField = "time"
 	}
 
 	dt := dv.Type()
@@ -45,7 +45,7 @@ func Encode(d interface{}, timeField *usingValue) (p Point, err error) {
 			continue
 		}
 
-		fd := parseInfluxTag(ft.Name, ft.Tag.Get("influx"))
+		fd := ParseInfluxTag(ft.Name, ft.Tag.Get("influx"))
 		if err = p.processField(fd, timeField, fv); err != nil {
 			return
 		}
@@ -58,22 +58,20 @@ func Encode(d interface{}, timeField *usingValue) (p Point, err error) {
 	return
 }
 
-func (p *Point) processField(fd influxField, timeField *usingValue, f reflect.Value) error {
-	if fd.fieldName == timeField.value {
-		v, ok := f.Interface().(time.Time)
-		if !ok {
-			return fmt.Errorf("time field %s is not time.Time", fd.fieldName)
+func (p *Point) processField(fd InfluxField, timeField string, f reflect.Value) error {
+	if fd.FieldName == timeField {
+		if v, ok := f.Interface().(time.Time); ok {
+			p.Time = v
+			return nil
 		}
-
-		p.Time = v
-		return nil
+		return fmt.Errorf("time field %s is not time.Time", fd.FieldName)
 	}
 
-	if fd.isTag {
-		p.Tags[fd.fieldName] = fmt.Sprintf("%v", f)
+	if fd.IsTag {
+		p.Tags[fd.FieldName] = fmt.Sprintf("%v", f)
 	}
-	if fd.isField {
-		p.Fields[fd.fieldName] = f.Interface()
+	if fd.IsField {
+		p.Fields[fd.FieldName] = f.Interface()
 	}
 
 	return nil
@@ -89,7 +87,7 @@ func (p *Point) processField(fd influxField, timeField *usingValue, f reflect.Va
 //        "statement_id": 0,
 //        "series": [{
 //            "name": "cpu_load_short",
-//            "columns": ["time", "value"],
+//            "columns": ["time", "Value"],
 //            "values": [
 //                ["2015-01-29T21:55:43.702900257Z", 2],
 //                ["2015-01-29T21:55:43.702900257Z", 0.55],
@@ -143,17 +141,17 @@ func Decode(influxResult []models.Row, result interface{}) error {
 	return decoder.Decode(influxData)
 }
 
-type influxField struct {
-	fieldName string
-	isTag     bool
-	isField   bool
+type InfluxField struct {
+	FieldName string
+	IsTag     bool
+	IsField   bool
 }
 
-func parseInfluxTag(fieldName, structTag string) influxField {
-	fd := influxField{fieldName: fieldName}
+func ParseInfluxTag(fieldName, structTag string) InfluxField {
+	fd := InfluxField{FieldName: fieldName}
 	parts := strings.Split(structTag, ",")
 	if fieldName, parts = parts[0], parts[1:]; fieldName != "" {
-		fd.fieldName = fieldName
+		fd.FieldName = fieldName
 	}
 
 	if fieldName == "-" {
@@ -163,14 +161,14 @@ func parseInfluxTag(fieldName, structTag string) influxField {
 	for _, part := range parts {
 		switch part {
 		case "tag":
-			fd.isTag = true
+			fd.IsTag = true
 		case "field":
-			fd.isField = true
+			fd.IsField = true
 		}
 	}
 
-	if !fd.isTag {
-		fd.isField = true
+	if !fd.IsTag {
+		fd.IsField = true
 	}
 
 	return fd

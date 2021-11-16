@@ -1,7 +1,8 @@
-package influx
+package influx_test
 
 import (
 	"encoding/json"
+	"github.com/bingoohuang/influx"
 	"math"
 	"reflect"
 	"strconv"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestEncodeDataNotStruct(t *testing.T) {
-	_, err := Encode([]int{1, 2, 3}, nil)
+	_, err := influx.Encode([]int{1, 2, 3}, "")
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -24,7 +25,7 @@ func TestEncodeSetsMesurment(t *testing.T) {
 	}
 
 	d := &MyType{"test-data"}
-	p, err := Encode(d, nil)
+	p, err := influx.Encode(d, "")
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -43,7 +44,7 @@ func TestEncodeUsesTimeField(t *testing.T) {
 	td, _ := time.Parse(time.RFC822, "27 Oct 78 15:04 PST")
 
 	d := &MyType{td, "test-data"}
-	p, err := Encode(d, &usingValue{"my_time_field", false})
+	p, err := influx.Encode(d, "my_time_field")
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -70,8 +71,8 @@ func TestEncode(t *testing.T) {
 	d := MyType{
 		"test",
 		time.Now(),
-		"tag-value",
-		"tag-and-field-value",
+		"tag-Value",
+		"tag-and-field-Value",
 		10,
 		10.5,
 		true,
@@ -83,8 +84,8 @@ func TestEncode(t *testing.T) {
 	timeExp := d.Time
 
 	tagsExp := map[string]string{
-		"tagValue":         "tag-value",
-		"tagAndFieldValue": "tag-and-field-value",
+		"tagValue":         "tag-Value",
+		"tagAndFieldValue": "tag-and-field-Value",
 	}
 
 	fieldsExp := map[string]interface{}{
@@ -96,7 +97,7 @@ func TestEncode(t *testing.T) {
 		"StructFieldName":  d.StructFieldName,
 	}
 
-	p, err := Encode(d, nil)
+	p, err := influx.Encode(d, "")
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -105,7 +106,7 @@ func TestEncode(t *testing.T) {
 		t.Errorf("%v != %v", p.Measurement, d.InfluxMeasurement)
 	}
 
-	if _, ok := p.Fields[InfluxMeasurement]; ok {
+	if _, ok := p.Fields[influx.InfluxMeasurement]; ok {
 		t.Errorf("Found InfluxMeasurement in the fields!")
 	}
 
@@ -132,7 +133,7 @@ func TestDecode(t *testing.T) {
 			"stringValue",
 		},
 		Values: make([][]interface{}, 0),
-		Tags:   map[string]string{"tagValue": "tag-value"},
+		Tags:   map[string]string{"tagValue": "tag-Value"},
 	}
 
 	type DecodeType struct {
@@ -148,7 +149,7 @@ func TestDecode(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		v := DecodeType{
-			"tag-value",
+			"tag-Value",
 			i,
 			float64(i),
 			math.Mod(float64(i), 2) == 0,
@@ -170,13 +171,13 @@ func TestDecode(t *testing.T) {
 
 	var decoded []DecodeType
 
-	err := Decode([]models.Row{data}, &decoded)
+	err := influx.Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
 
 	if !reflect.DeepEqual(expected, decoded) {
-		t.Error("decoded value is not right")
+		t.Error("decoded Value is not right")
 	}
 }
 
@@ -198,13 +199,13 @@ func TestDecodeMissingColumn(t *testing.T) {
 	expected := []DecodeType{{1, 0}}
 	data.Values = append(data.Values, []interface{}{1})
 	var decoded []DecodeType
-	err := Decode([]models.Row{data}, &decoded)
+	err := influx.Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("UnExpected error decoding: ", data, &decoded)
 	}
 
 	if !reflect.DeepEqual(expected, decoded) {
-		t.Error("decoded value is not right")
+		t.Error("decoded Value is not right")
 	}
 }
 
@@ -227,13 +228,13 @@ func TestDecodeWrongType(t *testing.T) {
 	expected := []DecodeType{{1, 2.0}}
 	data.Values = append(data.Values, []interface{}{1.0, 2})
 	var decoded []DecodeType
-	err := Decode([]models.Row{data}, &decoded)
+	err := influx.Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Unexpected error decoding: ", err, data, decoded)
 	}
 
 	if !reflect.DeepEqual(expected, decoded) {
-		t.Error("decoded value is not right", expected, decoded)
+		t.Error("decoded Value is not right", expected, decoded)
 	}
 }
 
@@ -242,7 +243,7 @@ func TestDecodeTime(t *testing.T) {
 		Name: "bla",
 		Columns: []string{
 			"time",
-			"value",
+			"Value",
 		},
 		Values: make([][]interface{}, 0),
 		Tags:   map[string]string{},
@@ -250,7 +251,7 @@ func TestDecodeTime(t *testing.T) {
 
 	type DecodeType struct {
 		Time  time.Time `influx:"time"`
-		Value float64   `influx:"value"`
+		Value float64   `influx:"Value"`
 	}
 
 	timeS := "2018-06-14T21:47:11Z"
@@ -262,14 +263,14 @@ func TestDecodeTime(t *testing.T) {
 	expected := []DecodeType{{ti, 2.0}}
 	data.Values = append(data.Values, []interface{}{timeS, 2.0})
 	var decoded []DecodeType
-	err = Decode([]models.Row{data}, &decoded)
+	err = influx.Decode([]models.Row{data}, &decoded)
 
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
 
 	if !reflect.DeepEqual(expected, decoded) {
-		t.Error("decoded value is not right")
+		t.Error("decoded Value is not right")
 	}
 }
 
@@ -292,13 +293,13 @@ func TestDecodeJsonNumber(t *testing.T) {
 	expected := []DecodeType{{1, 2.0}}
 	data.Values = append(data.Values, []interface{}{json.Number("1"), json.Number("2.0")})
 	var decoded []DecodeType
-	err := Decode([]models.Row{data}, &decoded)
+	err := influx.Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
 
 	if !reflect.DeepEqual(expected, decoded) {
-		t.Error("decoded value is not right")
+		t.Error("decoded Value is not right")
 	}
 }
 
@@ -321,13 +322,13 @@ func TestDecodeUnsedStructValue(t *testing.T) {
 	expected := []DecodeType{{1, 0}}
 	data.Values = append(data.Values, []interface{}{1, 1.1})
 	var decoded []DecodeType
-	err := Decode([]models.Row{data}, &decoded)
+	err := influx.Decode([]models.Row{data}, &decoded)
 	if err != nil {
 		t.Error("Error decoding: ", err)
 	}
 
 	if !reflect.DeepEqual(expected, decoded) {
-		t.Error("decoded value is not right")
+		t.Error("decoded Value is not right")
 	}
 }
 
@@ -351,7 +352,7 @@ func TestDecodeMeasure(t *testing.T) {
 	expected := []DecodeType{{"bla", 1, 0}}
 	data.Values = append(data.Values, []interface{}{1, 1.1})
 	var decoded []DecodeType
-	err := Decode([]models.Row{data}, &decoded)
+	err := influx.Decode([]models.Row{data}, &decoded)
 
 	if decoded[0].InfluxMeasurement != expected[0].InfluxMeasurement {
 		t.Error("Decoded Wrong measure")
@@ -362,7 +363,7 @@ func TestDecodeMeasure(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(expected, decoded) {
-		t.Error("decoded value is not right")
+		t.Error("decoded Value is not right")
 	}
 }
 
@@ -389,15 +390,15 @@ func TestTag(t *testing.T) {
 	}
 
 	for _, testData := range data {
-		fieldData := parseInfluxTag(testData.structFieldName, testData.fieldTag)
-		if fieldData.fieldName != testData.fieldName {
-			t.Errorf("%v != %v", fieldData.fieldName, testData.fieldName)
+		fieldData := influx.ParseInfluxTag(testData.structFieldName, testData.fieldTag)
+		if fieldData.FieldName != testData.fieldName {
+			t.Errorf("%v != %v", fieldData.FieldName, testData.fieldName)
 		}
-		if fieldData.isField != testData.isField {
-			t.Errorf("%v != %v", fieldData.isField, testData.isField)
+		if fieldData.IsField != testData.isField {
+			t.Errorf("%v != %v", fieldData.IsField, testData.isField)
 		}
-		if fieldData.isTag != testData.isTag {
-			t.Errorf("%v != %v", fieldData.isTag, testData.isTag)
+		if fieldData.IsTag != testData.isTag {
+			t.Errorf("%v != %v", fieldData.IsTag, testData.isTag)
 		}
 	}
 }
