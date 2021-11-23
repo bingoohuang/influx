@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bingoohuang/gg/pkg/mapstruct"
 	"github.com/influxdata/influxdb1-client/models"
-	"github.com/mitchellh/mapstructure"
 )
 
 var (
@@ -118,13 +118,13 @@ func Decode(influxResult []models.Row, result interface{}) error {
 		return nil
 	}
 
-	config := &mapstructure.DecoderConfig{
-		Metadata:         &mapstructure.Metadata{},
+	config := &mapstruct.Config{
+		Metadata:         &mapstruct.Metadata{},
 		Result:           result,
-		TagName:          "influx",
+		TagNames:         []string{"influx"},
 		WeaklyTypedInput: false,
 		ZeroFields:       false,
-		DecodeHook: func(f, t reflect.Type, data interface{}) (interface{}, error) {
+		Hook: func(f, t reflect.Type, data interface{}) (interface{}, error) {
 			if t == timeType && f == stringType {
 				return time.Parse(time.RFC3339, data.(string))
 			}
@@ -133,7 +133,7 @@ func Decode(influxResult []models.Row, result interface{}) error {
 		},
 	}
 
-	decoder, err := mapstructure.NewDecoder(config)
+	decoder, err := mapstruct.NewDecoder(config)
 	if err != nil {
 		return err
 	}
