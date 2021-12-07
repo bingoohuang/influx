@@ -119,11 +119,12 @@ func Decode(influxResult []models.Row, result interface{}) error {
 	}
 
 	config := &mapstruct.Config{
-		Metadata:         &mapstruct.Metadata{},
-		Result:           result,
-		TagNames:         []string{"influx"},
-		WeaklyTypedInput: false,
-		ZeroFields:       false,
+		Metadata:   &mapstruct.Metadata{},
+		Result:     result,
+		TagNames:   []string{"influx"},
+		WeakType:   true,
+		Squash:     true,
+		ZeroFields: false,
 		Hook: func(f, t reflect.Type, data interface{}) (interface{}, error) {
 			if t == timeType && f == stringType {
 				return time.Parse(time.RFC3339, data.(string))
