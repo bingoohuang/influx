@@ -38,6 +38,8 @@ func Encode(d interface{}, timeField string) (p Point, err error) {
 	}
 
 	dt := dv.Type()
+	var times []time.Time
+
 	for i := 0; i < dv.NumField(); i++ {
 		ft, fv := dt.Field(i), dv.Field(i)
 		if ft.Name == InfluxMeasurement {
@@ -49,6 +51,16 @@ func Encode(d interface{}, timeField string) (p Point, err error) {
 		if err = p.processField(fd, timeField, fv); err != nil {
 			return
 		}
+
+		if p.Time.IsZero() && fv.CanConvert(timeType) {
+			if v, ok := fv.Convert(timeType).Interface().(time.Time); ok {
+				times = append(times, v)
+			}
+		}
+	}
+
+	if p.Time.IsZero() && len(times) == 1 {
+		p.Time = times[0]
 	}
 
 	if p.Measurement == "" {

@@ -13,8 +13,8 @@ var reRemoveExtraSpace = regexp.MustCompile(`\s\s+`)
 // CleanQuery can be used to strip a query string of
 // newline characters. Typically, only used for debugging.
 func CleanQuery(query string) string {
-	ret := strings.Replace(query, "\n", "", -1)
-	ret = strings.Replace(ret, "\r", "", -1)
+	ret := strings.Replace(query, "\n", " ", -1)
+	ret = strings.Replace(ret, "\r", " ", -1)
 	return reRemoveExtraSpace.ReplaceAllString(ret, " ")
 }
 
@@ -35,36 +35,49 @@ type Point struct {
 	Fields      map[string]interface{}
 }
 
-// NewClient returns a new influx *Cli given a url, user,
-// password, and precision strings.
-//
-// url is typically something like: http://localhost:8086
-//
-// precision can be ‘h’, ‘m’, ‘s’, ‘ms’, ‘u’, or ‘ns’ and is
-// used during write operations.
-func NewClient(url, user, passwd, precision string) (*Cli, error) {
-	c, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr:     url,
-		Username: user,
-		Password: passwd,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if precision == "" {
-		precision = "ns"
-	}
-
-	return &Cli{
-		Precision: precision,
-		Client:    c,
-	}, nil
+type Config struct {
+	User      string
+	Password  string
+	Precision string
+	Addr      string
+	Client    client.Client
 }
 
-// NewCli create a client using a direct client.Client.
-func NewCli(c client.Client) *Cli {
-	return &Cli{Precision: "ns", Client: c}
+// WithAddr set Addr which typically like: http://localhost:8086.
+func WithAddr(addr string) ConfigFn { return func(c *Config) { c.Addr = addr } }
+func WithUser(user, password string) ConfigFn {
+	return func(c *Config) {
+		c.User = user
+		c.Password = password
+	}
+}
+
+// WithClient create a client using a direct client.Client.
+func WithClient(client client.Client) ConfigFn { return func(c *Config) { c.Client = client } }
+
+// WithPrecision set precision which can be ‘h’, ‘m’, ‘s’, ‘ms’, ‘u’, or ‘ns’ and is used during write operations.
+func WithPrecision(precision string) ConfigFn { return func(c *Config) { c.Precision = precision } }
+
+type ConfigFn func(*Config)
+
+// New returns a new influx *Cli.
+func New(fns ...ConfigFn) (*Cli, error) {
+	c := &Config{Addr: "http://localhost:8086", Precision: "ns"}
+	for _, fn := range fns {
+		fn(c)
+	}
+
+	if c.Client == nil {
+		var err error
+		if c.Client, err = client.NewHTTPClient(client.HTTPConfig{
+			Addr:     c.Addr,
+			Username: c.User, Password: c.Password,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	return &Cli{Precision: c.Precision, Client: c.Client}, nil
 }
 
 // UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields.
@@ -79,17 +92,15 @@ func (c *Cli) UseTimeField(fieldName string) *Cli {
 	return c
 }
 
-// DecodeQuery executes an InfluxDb query, and unpacks the result into the
-// result data structure.
+// DecodeQuery executes an InfluxDb query, and unpacks the result into the result data structure.
 //
-// result must be an array of structs that contains the fields returned
-// by the query. The struct type must always contain a Time field. The
-// struct type must also include influx field tags which map the struct
-// field name to the InfluxDb field/tag names. This tag is currently
-// required as typically Go struct field names start with a capital letter,
-// and InfluxDb field/tag names typically start with a lower case letter.
-// The struct field tag can be set to '-' which indicates this field
-// should be ignored.
+// result must be an array of structs that contains the fields returned by the query. The struct
+// type must always contain a Time field. The struct type must also include influx field tags
+// which map the struct field name to the InfluxDb field/tag names. This tag is currently
+// required as typically Go struct field names start with a capital letter, and InfluxDb field/tag
+// names typically start with a lower case letter. The struct field tag can be set to '-' which
+// indicates this field should be ignored.
+
 func (c *Cli) DecodeQuery(q string, result interface{}) error {
 	// sample results check website
 	// https://docs.influxdata.com/influxdb/v1.7/guides/querying_data/
