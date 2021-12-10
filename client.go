@@ -23,8 +23,7 @@ type Cli struct {
 	client.Client
 	Precision string
 
-	db        string
-	timeField string
+	db string
 }
 
 // Point is a point for influx measurement.
@@ -86,12 +85,6 @@ func (c *Cli) UseDB(db string) *Cli {
 	return c
 }
 
-// UseTimeField sets the DB to use for Query, WritePoint, and WritePointTagsFields.
-func (c *Cli) UseTimeField(fieldName string) *Cli {
-	c.timeField = fieldName
-	return c
-}
-
 // DecodeQuery executes an InfluxDb query, and unpacks the result into the result data structure.
 //
 // result must be an array of structs that contains the fields returned by the query. The struct
@@ -133,7 +126,7 @@ func (c *Cli) DecodeQuery(q string, result interface{}) error {
 // the struct field should be ignored. A struct field of Time is required and
 // is used for the time of the sample.
 func (c *Cli) WritePoint(data interface{}) error {
-	point, err := Encode(data, c.timeField)
+	point, err := Encode(data)
 	if err != nil {
 		return err
 	}

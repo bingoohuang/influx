@@ -13,7 +13,7 @@ import (
 )
 
 func TestEncodeDataNotStruct(t *testing.T) {
-	_, err := influx.Encode([]int{1, 2, 3}, "")
+	_, err := influx.Encode([]int{1, 2, 3})
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -25,7 +25,7 @@ func TestEncodeSetsMesurment(t *testing.T) {
 	}
 
 	d := &MyType{"test-data"}
-	p, err := influx.Encode(d, "")
+	p, err := influx.Encode(d)
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -37,14 +37,14 @@ func TestEncodeSetsMesurment(t *testing.T) {
 
 func TestEncodeUsesTimeField(t *testing.T) {
 	type MyType struct {
-		MyTimeField time.Time `influx:"my_time_field"`
-		Val         string    `influx:"val"`
+		MyTimeField time.Time
+		Val         string `influx:"val"`
 	}
 
 	td, _ := time.Parse(time.RFC822, "27 Oct 78 15:04 PST")
 
 	d := &MyType{td, "test-data"}
-	p, err := influx.Encode(d, "my_time_field")
+	p, err := influx.Encode(d)
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -57,28 +57,28 @@ func TestEncodeUsesTimeField(t *testing.T) {
 func TestEncode(t *testing.T) {
 	type MyType struct {
 		InfluxMeasurement string
-		Time              time.Time `influx:"time"`
-		TagValue          string    `influx:"tagValue,tag"`
-		TagAndFieldValue  string    `influx:"tagAndFieldValue,tag,field"`
-		IntValue          int       `influx:"intValue"`
-		FloatValue        float64   `influx:"floatValue"`
-		BoolValue         bool      `influx:"boolValue"`
-		StringValue       string    `influx:"stringValue"`
+		Time              time.Time
+		TagValue          string `influx:",tag"`
+		TagAndFieldValue  string `influx:",tag,field"`
+		IntValue          int
+		FloatValue        float64
+		BoolValue         bool
+		StringValue       string
 		StructFieldName   string
 		IgnoredValue      string `influx:"-"`
 	}
 
 	d := MyType{
-		"test",
-		time.Now(),
-		"tag-Value",
-		"tag-and-field-Value",
-		10,
-		10.5,
-		true,
-		"string",
-		"struct-field",
-		"ignored",
+		InfluxMeasurement: "test",
+		Time:              time.Now(),
+		TagValue:          "tag-Value",
+		TagAndFieldValue:  "tag-and-field-Value",
+		IntValue:          10,
+		FloatValue:        10.5,
+		BoolValue:         true,
+		StringValue:       "string",
+		StructFieldName:   "struct-field",
+		IgnoredValue:      "ignored",
 	}
 
 	timeExp := d.Time
@@ -94,10 +94,10 @@ func TestEncode(t *testing.T) {
 		"floatValue":       d.FloatValue,
 		"boolValue":        d.BoolValue,
 		"stringValue":      d.StringValue,
-		"StructFieldName":  d.StructFieldName,
+		"structFieldName":  d.StructFieldName,
 	}
 
-	p, err := influx.Encode(d, "")
+	p, err := influx.Encode(d)
 	if err != nil {
 		t.Error("Error encoding: ", err)
 	}
@@ -250,8 +250,8 @@ func TestDecodeTime(t *testing.T) {
 	}
 
 	type DecodeType struct {
-		Time  time.Time `influx:"time"`
-		Value float64   `influx:"Value"`
+		Time  time.Time
+		Value float64
 	}
 
 	timeS := "2018-06-14T21:47:11Z"
@@ -260,6 +260,7 @@ func TestDecodeTime(t *testing.T) {
 		t.Error("error parsing expected time: ", err)
 	}
 
+	ti = ti.In(time.Local)
 	expected := []DecodeType{{ti, 2.0}}
 	data.Values = append(data.Values, []interface{}{timeS, 2.0})
 	var decoded []DecodeType
@@ -375,11 +376,11 @@ func TestTag(t *testing.T) {
 		isTag           bool
 		isField         bool
 	}{
-		{"", "Test", "Test", false, true},
-		{",tag", "Test", "Test", true, false},
-		{",field,tag", "Test", "Test", true, true},
-		{",tag,field", "Test", "Test", true, true},
-		{",field", "Test", "Test", false, true},
+		{"", "Test", "test", false, true},
+		{",tag", "Test", "test", true, false},
+		{",field,tag", "Test", "test", true, true},
+		{",tag,field", "Test", "test", true, true},
+		{",field", "Test", "test", false, true},
 		{"test", "Test", "test", false, true},
 		{"test,tag", "Test", "test", true, false},
 		{"test,field,tag", "Test", "test", true, true},
@@ -391,8 +392,8 @@ func TestTag(t *testing.T) {
 
 	for _, testData := range data {
 		fieldData := influx.ParseInfluxTag(testData.structFieldName, testData.fieldTag)
-		if fieldData.FieldName != testData.fieldName {
-			t.Errorf("%v != %v", fieldData.FieldName, testData.fieldName)
+		if fieldData.Name != testData.fieldName {
+			t.Errorf("%v != %v", fieldData.Name, testData.fieldName)
 		}
 		if fieldData.IsField != testData.isField {
 			t.Errorf("%v != %v", fieldData.IsField, testData.isField)

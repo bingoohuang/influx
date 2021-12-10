@@ -3,9 +3,11 @@ package influx
 import (
 	"errors"
 	"fmt"
+	"github.com/bingoohuang/gg/pkg/strcase"
 	"reflect"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/bingoohuang/gg/pkg/mapstruct"
 	"github.com/influxdata/influxdb1-client/models"
@@ -20,7 +22,7 @@ var (
 const InfluxMeasurement = "InfluxMeasurement"
 
 // Encode encodes a d into influx Point.
-func Encode(d interface{}, timeField string) (p Point, err error) {
+func Encode(d interface{}) (p Point, err error) {
 	dv := reflect.ValueOf(d)
 	if dv.Kind() == reflect.Ptr {
 		dv = reflect.Indirect(dv)
@@ -33,9 +35,6 @@ func Encode(d interface{}, timeField string) (p Point, err error) {
 
 	p.Tags = make(map[string]string)
 	p.Fields = make(map[string]interface{})
-	if timeField == "" {
-		timeField = "time"
-	}
 
 	dt := dv.Type()
 	var times []time.Time
@@ -48,7 +47,12 @@ func Encode(d interface{}, timeField string) (p Point, err error) {
 		}
 
 		fd := ParseInfluxTag(ft.Name, ft.Tag.Get("influx"))
-		if err = p.processField(fd, timeField, fv); err != nil {
+		if v := fd.Properties["measurement"]; v != "" {
+			p.Measurement = v
+			continue
+		}
+
+		if err = p.processField(fd, fv); err != nil {
 			return
 		}
 
@@ -70,20 +74,20 @@ func Encode(d interface{}, timeField string) (p Point, err error) {
 	return
 }
 
-func (p *Point) processField(fd InfluxField, timeField string, f reflect.Value) error {
-	if fd.FieldName == timeField {
+func (p *Point) processField(fd *Field, f reflect.Value) error {
+	if fd.Name == "Time" || fd.Name == "time" {
 		if v, ok := f.Interface().(time.Time); ok {
 			p.Time = v
 			return nil
 		}
-		return fmt.Errorf("time field %s is not time.Time", fd.FieldName)
+		return fmt.Errorf("time field %s is not time.Time", fd.Name)
 	}
 
 	if fd.IsTag {
-		p.Tags[fd.FieldName] = fmt.Sprintf("%v", f)
+		p.Tags[fd.Name] = fmt.Sprintf("%v", f)
 	}
 	if fd.IsField {
-		p.Fields[fd.FieldName] = f.Interface()
+		p.Fields[fd.Name] = f.Interface()
 	}
 
 	return nil
@@ -121,7 +125,6 @@ func Decode(influxResult []models.Row, result interface{}) error {
 				r[tag] = val
 			}
 			r[InfluxMeasurement] = series.Name
-
 			influxData = append(influxData, r)
 		}
 	}
@@ -139,7 +142,12 @@ func Decode(influxResult []models.Row, result interface{}) error {
 		ZeroFields: false,
 		Hook: func(f, t reflect.Type, data interface{}) (interface{}, error) {
 			if t == timeType && f == stringType {
-				return time.Parse(time.RFC3339, data.(string))
+				tt, err := time.ParseInLocation(time.RFC3339, data.(string), time.UTC)
+				if err == nil {
+					tt = tt.In(time.Local)
+				}
+
+				return tt, err
 			}
 
 			return data, nil
@@ -154,20 +162,26 @@ func Decode(influxResult []models.Row, result interface{}) error {
 	return decoder.Decode(influxData)
 }
 
-type InfluxField struct {
-	FieldName string
-	IsTag     bool
-	IsField   bool
+type Field struct {
+	Name       string
+	IsTag      bool
+	IsField    bool
+	Properties map[string]string
 }
 
-func ParseInfluxTag(fieldName, structTag string) InfluxField {
-	fd := InfluxField{FieldName: fieldName}
+func ParseInfluxTag(fieldName string, structTag string) *Field {
+	fd := &Field{Name: fieldName, Properties: map[string]string{}}
 	parts := strings.Split(structTag, ",")
-	if fieldName, parts = parts[0], parts[1:]; fieldName != "" {
-		fd.FieldName = fieldName
+	var f string
+	f, parts = parts[0], parts[1:]
+	f = strings.TrimSpace(f)
+	if f != "" {
+		fd.Name = f
+	} else {
+		fd.Name = strcase.ToCamelLower(fd.Name)
 	}
 
-	if fieldName == "-" {
+	if fd.Name == "-" {
 		return fd
 	}
 
@@ -177,10 +191,18 @@ func ParseInfluxTag(fieldName, structTag string) InfluxField {
 			fd.IsTag = true
 		case "field":
 			fd.IsField = true
+		default:
+			if kv := strings.SplitN(part, ":", 2); kv[0] != "" {
+				v := ""
+				if len(kv) > 1 {
+					v = kv[1]
+				}
+				fd.Properties[kv[0]] = v
+			}
 		}
 	}
 
-	if !fd.IsTag {
+	if !fd.IsField && !fd.IsTag && unicode.IsUpper(rune(fieldName[0])) {
 		fd.IsField = true
 	}
 
