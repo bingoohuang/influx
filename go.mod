@@ -1,9 +1,9 @@
 module github.com/bingoohuang/influx
 
-require (
-	github.com/bingoohuang/gg v0.0.0-20211207092140-f2c4855a618d
-	github.com/go-playground/assert/v2 v2.0.1
-	github.com/influxdata/influxdb1-client v0.0.0-20200827194710-b269163b24ab
-)
-
 go 1.13
+
+require (
+	github.com/bingoohuang/gg v0.0.0-20221026080853-15f28e45405e
+	github.com/go-playground/assert/v2 v2.2.0
+	github.com/influxdata/influxdb1-client v0.0.0-20220302092344-a9ab5670611c
+)

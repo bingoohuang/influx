@@ -3,13 +3,14 @@ package influx
 import (
 	"errors"
 	"fmt"
-	"github.com/bingoohuang/gg/pkg/strcase"
 	"reflect"
 	"strings"
 	"time"
 	"unicode"
 
 	"github.com/bingoohuang/gg/pkg/mapstruct"
+	"github.com/bingoohuang/gg/pkg/ss"
+	"github.com/bingoohuang/gg/pkg/strcase"
 	"github.com/influxdata/influxdb1-client/models"
 )
 
@@ -98,21 +99,26 @@ func (p *Point) processField(fd *Field, f reflect.Value) error {
 //
 // This function is used internally by the Query function.
 // example result layout:
-// {
-//    "results": [{
-//        "statement_id": 0,
-//        "series": [{
-//            "name": "cpu_load_short",
-//            "columns": ["time", "Value"],
-//            "values": [
-//                ["2015-01-29T21:55:43.702900257Z", 2],
-//                ["2015-01-29T21:55:43.702900257Z", 0.55],
-//                ["2015-06-11T20:46:02Z", 0.64]
-//            ]
-//        }]
-//    }]
-//}
+//
+//	{
+//	   "results": [{
+//	       "statement_id": 0,
+//	       "series": [{
+//	           "name": "cpu_load_short",
+//	           "columns": ["time", "Value"],
+//	           "values": [
+//	               ["2015-01-29T21:55:43.702900257Z", 2],
+//	               ["2015-01-29T21:55:43.702900257Z", 0.55],
+//	               ["2015-06-11T20:46:02Z", 0.64]
+//	           ]
+//	       }]
+//	   }]
+//	}
 func Decode(influxResult []models.Row, result interface{}) error {
+	return DecodeOption(influxResult, result, &QueryOption{})
+}
+
+func DecodeOption(influxResult []models.Row, result interface{}, option *QueryOption) error {
 	influxData := make([]map[string]interface{}, 0)
 
 	for _, series := range influxResult {
@@ -120,6 +126,13 @@ func Decode(influxResult []models.Row, result interface{}) error {
 			r := make(map[string]interface{})
 			for i, c := range series.Columns {
 				r[c] = v[i]
+				if option.tagKeys[c] {
+					if cv, ok := v[i].(string); ok {
+						if !ss.AnyOf(cv, (*option.ReturnTags)[c]...) {
+							(*option.ReturnTags)[c] = append((*option.ReturnTags)[c], cv)
+						}
+					}
+				}
 			}
 			for tag, val := range series.Tags {
 				r[tag] = val

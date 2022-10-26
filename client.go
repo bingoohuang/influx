@@ -1,10 +1,13 @@
 package influx
 
 import (
+	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb1-client/models"
 	client "github.com/influxdata/influxdb1-client/v2"
 )
 
@@ -44,6 +47,7 @@ type Config struct {
 
 // WithAddr set Addr which typically like: http://localhost:8086.
 func WithAddr(addr string) ConfigFn { return func(c *Config) { c.Addr = addr } }
+
 func WithUser(user, password string) ConfigFn {
 	return func(c *Config) {
 		c.User = user
@@ -85,6 +89,22 @@ func (c *Cli) UseDB(db string) *Cli {
 	return c
 }
 
+// QueryOption defines the options for querying.
+type QueryOption struct {
+	ReturnTags *map[string][]string
+	tagKeys    map[string]bool
+}
+
+// QueryOptionFn defines the option func.
+type QueryOptionFn func(*QueryOption)
+
+// WithTagsReturn specifying the tag values should be returned.
+func WithTagsReturn(tags *map[string][]string) QueryOptionFn {
+	return func(q *QueryOption) {
+		q.ReturnTags = tags
+	}
+}
+
 // DecodeQuery executes an InfluxDb query, and unpacks the result into the result data structure.
 //
 // result must be an array of structs that contains the fields returned by the query. The struct
@@ -94,16 +114,21 @@ func (c *Cli) UseDB(db string) *Cli {
 // names typically start with a lower case letter. The struct field tag can be set to '-' which
 // indicates this field should be ignored.
 
-func (c *Cli) DecodeQuery(q string, result interface{}) error {
+func (c *Cli) DecodeQuery(q string, result interface{}, options ...QueryOptionFn) error {
+	option := &QueryOption{}
+	for _, f := range options {
+		f(option)
+	}
+
 	// sample results check website
 	// https://docs.influxdata.com/influxdb/v1.7/guides/querying_data/
-	response, err := c.Query(client.Query{
+	cq := client.Query{
 		Command:   q,
 		Database:  c.db,
 		Chunked:   false,
 		ChunkSize: 100,
-	})
-
+	}
+	response, err := c.Query(cq)
 	if err != nil {
 		return err
 	}
@@ -115,7 +140,49 @@ func (c *Cli) DecodeQuery(q string, result interface{}) error {
 		return nil
 	}
 
-	return Decode(response.Results[0].Series, result)
+	series := response.Results[0].Series
+
+	if option.ReturnTags != nil {
+		tagKeys, err := c.queryTagKeys(&cq, series)
+		if err != nil {
+			log.Printf("query tag keys failed: %v", err)
+		}
+		option.tagKeys = tagKeys
+	}
+
+	return DecodeOption(series, result, option)
+}
+
+var measurementNameRe = regexp.MustCompile(`(?i)\s+from\s+(\S+)`)
+
+func (c *Cli) queryTagKeys(cq *client.Query, series []models.Row) (map[string]bool, error) {
+	if len(series) == 0 {
+		return nil, nil
+	}
+
+	measurementName := series[0].Name
+	subs := measurementNameRe.FindAllStringSubmatch(cq.Command, 1)
+	if len(subs) > 0 {
+		measurementName = subs[0][1]
+	}
+
+	cq.Command = "show tag keys from " + measurementName
+	tagKeysRsp, err := c.Query(*cq)
+	if err != nil {
+		return nil, fmt.Errorf("execute %s %w", cq.Command, err)
+	}
+	if err := tagKeysRsp.Error(); err != nil {
+		return nil, fmt.Errorf("execute %s %w", cq.Command, err)
+	}
+	if len(tagKeysRsp.Results) > 0 && len(tagKeysRsp.Results[0].Series) > 0 && len(tagKeysRsp.Results[0].Series[0].Values) > 0 {
+		tagKeys := make(map[string]bool)
+		for _, k := range tagKeysRsp.Results[0].Series[0].Values[0] {
+			tagKeys[k.(string)] = true
+		}
+		return tagKeys, nil
+	}
+
+	return nil, nil
 }
 
 // WritePoint is used to write arbitrary data into InfluxDb.
@@ -145,7 +212,6 @@ func (c *Cli) WritePointRaw(p Point) (err error) {
 	}
 
 	pt, err := client.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
-
 	if err != nil {
 		return err
 	}

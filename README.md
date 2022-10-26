@@ -16,11 +16,11 @@ There are several advantages decoding and encoding data directly from Go Structs
    database. When all your data is clearly defined in Go structs, it is much more obvious how to organize it, what goes
    in what measurement, when to create a new measurement, etc. When writing straight tags/values, it is much easier to
    create a disorganized mess.
-1. All the code for decoding and encoding the various data types supported by InfluxDb are handled in one place, rather
+2. All the code for decoding and encoding the various data types supported by InfluxDb are handled in one place, rather
    than repeating this logic over and over for every Query.
-1. Likewise, code for handling arrays (translating Go array to InfluxDb fields like temp0, temp1, temp2, ...) can be in
+3. Likewise, code for handling arrays (translating Go array to InfluxDb fields like temp0, temp1, temp2, ...) can be in
    one place.
-1. Reading and Writing data is much simpler and requires way less code.
+4. Reading and Writing data is much simpler and requires way less code.
 
 Using Go reflection to automate data decode may be slightly slower than custom decode logic for every query, but it
 seems the time to decode the data will relatively fast compare to the time to run a InfluxDb query, so may be

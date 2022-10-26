@@ -3,13 +3,28 @@ package influx_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/bingoohuang/influx"
-	"github.com/go-playground/assert/v2"
-	client "github.com/influxdata/influxdb1-client/v2"
 	"log"
 	"testing"
 	"time"
+
+	"github.com/bingoohuang/influx"
+	"github.com/go-playground/assert/v2"
+	client "github.com/influxdata/influxdb1-client/v2"
 )
+
+func TestExample2(t *testing.T) {
+	cli, _ := influx.New(influx.WithAddr("http://localhost:8086"))
+	var m map[string]string
+	// INSERT weather,location=us-midwest temperature=82,humidity=71 1465839830100400200
+	tags := make(map[string][]string)
+	cli.UseDB("king").DecodeQuery(`select * from king.autogen.weather`, &m, influx.WithTagsReturn(&tags))
+
+	fmt.Println(m)
+	fmt.Println(tags)
+	// Output:
+	//	map[InfluxMeasurement:weather humidity:71 location:us-midwest temperature:82 time:2016-06-13T17:43:50.1004002Z]
+	//	map[location:[us-midwest]]
+}
 
 func TestExample(t *testing.T) {
 	cli, _ := influx.New(influx.WithAddr("http://localhost:8086"))
@@ -20,6 +35,7 @@ func TestExample(t *testing.T) {
 	// Output:
 	// map[InfluxMeasurement:cpu cpu:cpu7 host:tencent-beta01 ip:192.168.106.3 ips:192.168.106.3 time:2021-12-09T04:31:22Z time_active:62547.40000000037 time_guest:0 time_guest_nice:0 time_idle:6827183.36 time_iowait:216.63 time_irq:14.15 time_nice:5.92 time_softirq:1013.13 time_steal:0 time_system:28451.05 time_user:32846.52 usage_active:0.2004008064468124 usage_guest:0 usage_guest_nice:0 usage_idle:99.79959919355319 usage_iowait:0 usage_irq:0 usage_nice:0 usage_softirq:0 usage_steal:0 usage_system:0.10020040078107574 usage_user:0.10020040074462304]
 }
+
 func TestInflux(t *testing.T) {
 	const db = "demo"
 

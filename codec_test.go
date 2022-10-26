@@ -2,13 +2,13 @@ package influx_test
 
 import (
 	"encoding/json"
-	"github.com/bingoohuang/influx"
 	"math"
 	"reflect"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/bingoohuang/influx"
 	"github.com/influxdata/influxdb1-client/models"
 )
 
