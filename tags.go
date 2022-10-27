@@ -12,7 +12,7 @@ func (c *Cli) queryTagKeys(cq *client.Query, series []models.Row) (map[string]bo
 		return nil, nil
 	}
 
-	cq.Command = "show tag keys from " + series[0].Name
+	cq.Command = `show tag keys from "` + series[0].Name + `"`
 	rsp, err := c.Query(*cq)
 	if err != nil {
 		return nil, fmt.Errorf("execute %s %w", cq.Command, err)
