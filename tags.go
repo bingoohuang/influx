@@ -4,15 +4,28 @@ import (
 	"fmt"
 	"github.com/influxdata/influxdb1-client/models"
 	client "github.com/influxdata/influxdb1-client/v2"
+	"regexp"
 	"sort"
+	"strings"
 )
+
+var measurementRe = regexp.MustCompile(`select\s+.+\s+from (\S+)`)
 
 func (c *Cli) queryTagKeys(cq *client.Query, series []models.Row) (map[string]bool, error) {
 	if len(series) == 0 {
 		return nil, nil
 	}
 
-	cq.Command = `show tag keys from "` + series[0].Name + `"`
+	measurement := `"` + series[0].Name + `"`
+	if cq.Database == "" {
+		if subs := measurementRe.FindStringSubmatch(cq.Command); len(subs) > 0 {
+			if strings.Contains(subs[1], ".") {
+				cq.Database = subs[1][:strings.Index(subs[1], ".")]
+			}
+		}
+	}
+
+	cq.Command = `show tag keys from ` + measurement
 	rsp, err := c.Query(*cq)
 	if err != nil {
 		return nil, fmt.Errorf("execute %s %w", cq.Command, err)
