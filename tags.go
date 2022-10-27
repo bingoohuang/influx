@@ -17,11 +17,13 @@ func (c *Cli) queryTagKeys(cq *client.Query, series []models.Row) (map[string]bo
 	}
 
 	measurement := `"` + series[0].Name + `"`
-	if cq.Database == "" {
-		if subs := measurementRe.FindStringSubmatch(cq.Command); len(subs) > 0 {
-			if strings.Contains(subs[1], ".") {
-				cq.Database = subs[1][:strings.Index(subs[1], ".")]
-			}
+	oldDb := cq.Database
+
+	if subs := measurementRe.FindStringSubmatch(cq.Command); len(subs) > 0 {
+		if strings.Contains(subs[1], ".") {
+			cq.Database = subs[1][:strings.Index(subs[1], ".")]
+			// defer reset old db
+			defer func() { cq.Database = oldDb }()
 		}
 	}
 
