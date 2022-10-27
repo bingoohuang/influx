@@ -12,18 +12,28 @@ import (
 	client "github.com/influxdata/influxdb1-client/v2"
 )
 
-func TestExample2(t *testing.T) {
+func TestExample20(t *testing.T) {
 	cli, _ := influx.New(influx.WithAddr("http://localhost:8086"))
 	var m map[string]string
 	// INSERT weather,location=us-midwest temperature=82,humidity=71 1465839830100400200
 	tags := make(map[string][]string)
-	cli.UseDB("king").DecodeQuery(`select * from king.autogen.weather`, &m, influx.WithTagsReturn(&tags))
+	cli.UseDB("king").DecodeQuery(`select * from king.autogen.weather`, &m, influx.WithTagsReturn(&tags, 2))
 
 	fmt.Println(m)
 	fmt.Println(tags)
 	// Output:
 	//	map[InfluxMeasurement:weather humidity:71 location:us-midwest temperature:82 time:2016-06-13T17:43:50.1004002Z]
 	//	map[location:[us-midwest]]
+}
+
+func TestExample21(t *testing.T) {
+	cli, _ := influx.New(influx.WithAddr("http://192.168.127.23:10014"))
+	var m map[string]string
+	tags := make(map[string][]string)
+	cli.UseDB("metrics").DecodeQuery(`select * from metrics.autogen.QPS_dsvsServer order by time desc limit 100`, &m, influx.WithTagsReturn(&tags, 0))
+
+	fmt.Println(m)
+	fmt.Println(tags)
 }
 
 func TestExample(t *testing.T) {
@@ -74,8 +84,6 @@ func TestInflux(t *testing.T) {
 	if err = c.UseDB(db).DecodeQuery(`SELECT * FROM test ORDER BY time`, &samplesRead); err != nil {
 		log.Fatal("Query error: ", err)
 	}
-
-	time.Now().String()
 
 	s1, _ := json.Marshal(samples)
 	s2, _ := json.Marshal(samplesRead)

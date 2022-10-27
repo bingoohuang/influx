@@ -9,7 +9,6 @@ import (
 	"unicode"
 
 	"github.com/bingoohuang/gg/pkg/mapstruct"
-	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/gg/pkg/strcase"
 	"github.com/influxdata/influxdb1-client/models"
 )
@@ -121,18 +120,13 @@ func Decode(influxResult []models.Row, result interface{}) error {
 func DecodeOption(influxResult []models.Row, result interface{}, option *QueryOption) error {
 	influxData := make([]map[string]interface{}, 0)
 
+	tagCollector := makeTagsCollector(option)
 	for _, series := range influxResult {
 		for _, v := range series.Values {
 			r := make(map[string]interface{})
 			for i, c := range series.Columns {
 				r[c] = v[i]
-				if option.tagKeys[c] {
-					if cv, ok := v[i].(string); ok {
-						if !ss.AnyOf(cv, (*option.ReturnTags)[c]...) {
-							(*option.ReturnTags)[c] = append((*option.ReturnTags)[c], cv)
-						}
-					}
-				}
+				tagCollector.collect(c, v[i])
 			}
 			for tag, val := range series.Tags {
 				r[tag] = val
@@ -141,6 +135,8 @@ func DecodeOption(influxResult []models.Row, result interface{}, option *QueryOp
 			influxData = append(influxData, r)
 		}
 	}
+
+	tagCollector.complete(option.ReturnTags)
 
 	if len(influxData) == 0 {
 		return nil

@@ -1,13 +1,11 @@
 package influx
 
 import (
-	"fmt"
 	"log"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb1-client/models"
 	client "github.com/influxdata/influxdb1-client/v2"
 )
 
@@ -91,17 +89,19 @@ func (c *Cli) UseDB(db string) *Cli {
 
 // QueryOption defines the options for querying.
 type QueryOption struct {
-	ReturnTags *map[string][]string
-	tagKeys    map[string]bool
+	ReturnTags           *map[string][]string
+	ReturnTagValuesLimit int
+	tagKeys              map[string]bool
 }
 
 // QueryOptionFn defines the option func.
 type QueryOptionFn func(*QueryOption)
 
 // WithTagsReturn specifying the tag values should be returned.
-func WithTagsReturn(tags *map[string][]string) QueryOptionFn {
+func WithTagsReturn(tags *map[string][]string, valuesLimit int) QueryOptionFn {
 	return func(q *QueryOption) {
 		q.ReturnTags = tags
+		q.ReturnTagValuesLimit = valuesLimit
 	}
 }
 
@@ -143,46 +143,12 @@ func (c *Cli) DecodeQuery(q string, result interface{}, options ...QueryOptionFn
 	series := response.Results[0].Series
 
 	if option.ReturnTags != nil {
-		tagKeys, err := c.queryTagKeys(&cq, series)
-		if err != nil {
+		if option.tagKeys, err = c.queryTagKeys(&cq, series); err != nil {
 			log.Printf("query tag keys failed: %v", err)
 		}
-		option.tagKeys = tagKeys
 	}
 
 	return DecodeOption(series, result, option)
-}
-
-var measurementNameRe = regexp.MustCompile(`(?i)\s+from\s+(\S+)`)
-
-func (c *Cli) queryTagKeys(cq *client.Query, series []models.Row) (map[string]bool, error) {
-	if len(series) == 0 {
-		return nil, nil
-	}
-
-	measurementName := series[0].Name
-	subs := measurementNameRe.FindAllStringSubmatch(cq.Command, 1)
-	if len(subs) > 0 {
-		measurementName = subs[0][1]
-	}
-
-	cq.Command = "show tag keys from " + measurementName
-	tagKeysRsp, err := c.Query(*cq)
-	if err != nil {
-		return nil, fmt.Errorf("execute %s %w", cq.Command, err)
-	}
-	if err := tagKeysRsp.Error(); err != nil {
-		return nil, fmt.Errorf("execute %s %w", cq.Command, err)
-	}
-	if len(tagKeysRsp.Results) > 0 && len(tagKeysRsp.Results[0].Series) > 0 && len(tagKeysRsp.Results[0].Series[0].Values) > 0 {
-		tagKeys := make(map[string]bool)
-		for _, k := range tagKeysRsp.Results[0].Series[0].Values[0] {
-			tagKeys[k.(string)] = true
-		}
-		return tagKeys, nil
-	}
-
-	return nil, nil
 }
 
 // WritePoint is used to write arbitrary data into InfluxDb.
