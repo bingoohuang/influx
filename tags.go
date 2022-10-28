@@ -2,11 +2,12 @@ package influx
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb1-client/models"
-	client "github.com/influxdata/influxdb1-client/v2"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/influxdata/influxdb1-client/models"
+	client "github.com/influxdata/influxdb1-client/v2"
 )
 
 var measurementRe = regexp.MustCompile(`select\s+.+\s+from (\S+)`)
@@ -16,18 +17,29 @@ func (c *Cli) queryTagKeys(cq *client.Query, series []models.Row) (map[string]bo
 		return nil, nil
 	}
 
-	measurement := `"` + series[0].Name + `"`
+	measurement := series[0].Name
 	oldDb := cq.Database
 
+	// 尝试从 select ... from 语句中提取完整表名（例如：metrics.autogen.QPS_dsvsServer）
+	// 然后尝试从中获取库名，因为执行 `show tag keys from "measurement"` 时必须有库名
 	if subs := measurementRe.FindStringSubmatch(cq.Command); len(subs) > 0 {
 		if strings.Contains(subs[1], ".") {
 			cq.Database = subs[1][:strings.Index(subs[1], ".")]
-			// defer reset old db
+			// defer reset old DB
 			defer func() { cq.Database = oldDb }()
 		}
 	}
 
-	cq.Command = `show tag keys from ` + measurement
+	// 缓存 tag 键值列表，减少一次查询操作
+	key := cacheKey{Addr: c.Addr, DB: cq.Database, Measurement: measurement}
+	return cache.Get(key, func(k cacheKey) (map[string]bool, error) {
+		return c.showTagKeys(cq, k)
+	})
+}
+
+func (c *Cli) showTagKeys(cq *client.Query, k cacheKey) (map[string]bool, error) {
+	// 名称可能像 QPS_dsvsServer，需要双引号引用起来
+	cq.Command = `show tag keys from "` + k.Measurement + `"`
 	rsp, err := c.Query(*cq)
 	if err != nil {
 		return nil, fmt.Errorf("execute %s %w", cq.Command, err)

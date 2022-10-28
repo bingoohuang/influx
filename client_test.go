@@ -18,6 +18,7 @@ func TestExample20(t *testing.T) {
 	// INSERT weather,location=us-midwest temperature=82,humidity=71 1465839830100400200
 	tags := make(map[string][]string)
 	cli.UseDB("king").DecodeQuery(`select * from king.autogen.weather`, &m, influx.WithTagsReturn(&tags, 2))
+	cli.UseDB("king").DecodeQuery(`select * from king.autogen.weather`, &m, influx.WithTagsReturn(&tags, 2))
 
 	fmt.Println(m)
 	fmt.Println(tags)

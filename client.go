@@ -23,8 +23,8 @@ func CleanQuery(query string) string {
 type Cli struct {
 	client.Client
 	Precision string
-
-	db string
+	DB        string
+	Addr      string
 }
 
 // Point is a point for influx measurement.
@@ -78,12 +78,12 @@ func New(fns ...ConfigFn) (*Cli, error) {
 		}
 	}
 
-	return &Cli{Precision: c.Precision, Client: c.Client}, nil
+	return &Cli{Precision: c.Precision, Client: c.Client, Addr: c.Addr}, nil
 }
 
 // UseDB sets the DB to use for Query, WritePoint, and WritePointTagsFields.
 func (c *Cli) UseDB(db string) *Cli {
-	c.db = db
+	c.DB = db
 	return c
 }
 
@@ -124,7 +124,7 @@ func (c *Cli) DecodeQuery(q string, result interface{}, options ...QueryOptionFn
 	// https://docs.influxdata.com/influxdb/v1.7/guides/querying_data/
 	cq := client.Query{
 		Command:   q,
-		Database:  c.db,
+		Database:  c.DB,
 		Chunked:   false,
 		ChunkSize: 100,
 	}
@@ -170,7 +170,7 @@ func (c *Cli) WritePoint(data interface{}) error {
 // WritePointRaw is used to write a point specifying tags and fields.
 func (c *Cli) WritePointRaw(p Point) (err error) {
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  c.db,
+		Database:  c.DB,
 		Precision: c.Precision,
 	})
 	if err != nil {
