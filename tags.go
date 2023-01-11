@@ -70,14 +70,18 @@ func (t *noopTagsConnector) complete(tags *map[string][]string) {}
 func (t *noopTagsConnector) collect(k string, v interface{})    {}
 
 type tagsCollectorImpl struct {
-	tagValues   map[string]*set
 	tagKeys     map[string]bool
+	tagValues   map[string]*set
 	valuesLimit int
 }
 
 func (t *tagsCollectorImpl) complete(tags *map[string][]string) {
 	for k := range t.tagKeys {
-		(*tags)[k] = t.tagValues[k].toSlice()
+		if tagValues, ok := t.tagValues[k]; ok {
+			(*tags)[k] = tagValues.toSlice()
+		} else {
+			(*tags)[k] = nil
+		}
 	}
 }
 
@@ -87,23 +91,28 @@ func makeTagsCollector(option *QueryOption) tagsCollector {
 	}
 
 	return &tagsCollectorImpl{
-		tagValues:   make(map[string]*set),
 		tagKeys:     option.tagKeys,
+		tagValues:   make(map[string]*set),
 		valuesLimit: option.ReturnTagValuesLimit,
 	}
 }
 
 func (t *tagsCollectorImpl) collect(k string, v interface{}) {
-	if t.tagKeys[k] {
-		if cv, ok := v.(string); ok {
-			m, ok2 := t.tagValues[k]
-			if !ok2 {
-				m = newSet(t.valuesLimit)
-				t.tagValues[k] = m
-			}
-			m.add(cv)
-		}
+	if !t.tagKeys[k] {
+		return
 	}
+
+	cv, ok := v.(string)
+	if !ok {
+		cv = fmt.Sprintf("%v", v)
+	}
+
+	m, ok := t.tagValues[k]
+	if !ok {
+		m = newSet(t.valuesLimit)
+		t.tagValues[k] = m
+	}
+	m.add(cv)
 }
 
 type set struct {

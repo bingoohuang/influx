@@ -11,7 +11,11 @@ type cacheKey struct {
 	Measurement string
 }
 
-var cache = NewLoadingCache[cacheKey, map[string]bool](24 * time.Hour)
+var cache *LoadingCache[cacheKey, map[string]bool]
+
+func init() {
+	cache = NewLoadingCache[cacheKey, map[string]bool](24 * time.Hour)
+}
 
 type LoadingCache[K comparable, V any] struct {
 	sync.RWMutex

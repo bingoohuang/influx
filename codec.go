@@ -118,27 +118,27 @@ func Decode(influxResult []models.Row, result interface{}) error {
 }
 
 func DecodeOption(influxResult []models.Row, result interface{}, option *QueryOption) error {
-	influxData := make([]map[string]interface{}, 0)
+	influxRows := make([]map[string]interface{}, 0)
 
 	tagCollector := makeTagsCollector(option)
 	for _, series := range influxResult {
-		for _, v := range series.Values {
-			r := make(map[string]interface{})
-			for i, c := range series.Columns {
-				r[c] = v[i]
-				tagCollector.collect(c, v[i])
+		for _, values := range series.Values {
+			row := make(map[string]interface{})
+			for i, columnName := range series.Columns {
+				row[columnName] = values[i]
+				tagCollector.collect(columnName, values[i])
 			}
 			for tag, val := range series.Tags {
-				r[tag] = val
+				row[tag] = val
 			}
-			r[InfluxMeasurement] = series.Name
-			influxData = append(influxData, r)
+			row[InfluxMeasurement] = series.Name
+			influxRows = append(influxRows, row)
 		}
 	}
 
 	tagCollector.complete(option.ReturnTags)
 
-	if len(influxData) == 0 {
+	if len(influxRows) == 0 {
 		return nil
 	}
 
@@ -168,7 +168,7 @@ func DecodeOption(influxResult []models.Row, result interface{}, option *QueryOp
 		return err
 	}
 
-	return decoder.Decode(influxData)
+	return decoder.Decode(influxRows)
 }
 
 type Field struct {
